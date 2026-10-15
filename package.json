@@ -1,0 +1,46 @@
+{
+  "name": "studio-prompter-pro",
+  "version": "1.0.0",
+  "description": "Professional Studio Prompter for Windows and macOS",
+  "main": "main.js",
+  "author": "Studio Prompter",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.studioprompter.pro",
+    "productName": "StudioPrompterPro",
+    "files": [
+      "main.js",
+      "index.html",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.video",
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    }
+  }
+}
