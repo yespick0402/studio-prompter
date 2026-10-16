@@ -124,7 +124,33 @@
   #prompterContent { width: 100%; white-space: pre-wrap; word-break: break-word; }
   #prompterContent div, #prompterContent p { text-align: inherit; }
   .empty-line-spacer { display: block; width: 100%; pointer-events: none; }
-  .cue-marker { display: inline-block; background: rgba(224, 175, 104, 0.25); color: #ff9e64; border: 2px solid #ff9e64; border-radius: 8px; padding: 0 0.25em; margin: 0 0.1em; font-weight: 900; font-size: 0.75em; vertical-align: middle; }
+
+  /* 핵심 수정: 큐 마커(#1, #2 등)가 글자 줄의 가로 폭을 단 0px도 차지하지 않도록 플로팅 뱃지로 처리 -> 프리뷰와 송출창 줄바꿈 100% 일치 보장! */
+  .cue-marker {
+    display: inline-block;
+    position: relative;
+    width: 0;
+    height: 0;
+    overflow: visible;
+    vertical-align: baseline;
+    pointer-events: none;
+  }
+  .cue-marker::before {
+    content: attr(data-cue-label);
+    position: absolute;
+    right: 0.25em;
+    bottom: -0.15em;
+    background: rgba(224, 175, 104, 0.28);
+    color: #ff9e64;
+    border: 2px solid #ff9e64;
+    border-radius: 8px;
+    padding: 0.05em 0.3em;
+    font-weight: 900;
+    font-size: 0.65em;
+    line-height: 1.1;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.65);
+  }
 
   #previewLeadLine { position: absolute; left: 0; width: 100%; pointer-events: none; z-index: 15; transform: translateY(-50%); display: flex; align-items: center; justify-content: space-between; }
   .lead-arrow { font-size: 36px; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.9); padding: 0 10px; }
@@ -306,7 +332,7 @@
           </div>
 
           <div class="control-item">
-            <label>대본 첫 줄 시작 위치 <span id="valStartOffset">50%</span></label>
+            <label>대본 첫 줄 & #마커 이동 위치 <span id="valStartOffset">50%</span></label>
             <div class="control-row">
               <input type="range" id="startOffsetRange" min="0" max="110" value="50" oninput="updateStartOffset(this.value, true)">
               <input type="number" id="startOffsetNum" class="enter-apply" min="0" max="120" value="50" data-action="startOffset">
@@ -596,7 +622,7 @@
   </div>
 
 <script>
-const STORAGE_KEY = 'STUDIO_PROMPTER_PRO_V9';
+const STORAGE_KEY = 'STUDIO_PROMPTER_PRO_V10';
 
 const FAVORITE_COLORS = [
   { name: '빨강', hex: '#ff2222' }, { name: '주황', hex: '#ff8800' },
@@ -657,10 +683,10 @@ const defaultConfig = {
 
 const defaultSampleScript = `#1 안녕하십니까. 전용 스튜디오 아이콘 적용 및 송출창 단축키 완벽 동기화 버전입니다.
 
-이제 편집자 모니터의 우측 프리뷰 화면을 선택했을 때뿐만 아니라, 프롬프터 송출 창을 마우스로 클릭(선택)한 상태에서도 모든 단축키(Space, 방향키, Backspace, 숫자+Enter 마커 이동, F11, ESC)가 100% 동일하게 작동합니다!
+이제 편집자 모니터의 우측 프리뷰 화면과 프롬프터 송출 창의 글자 줄바꿈 위치가 단 한 글자의 오차도 없이 100% 똑같이 일치합니다!
 
-#2 [송출창 자유 이동 & 전체화면 ON/OFF 단축키 (F11)]
-상단의 [🧲 송출창 모으기]를 누르면 송출창이 현재 화면 중앙으로 창모드로 모이며, 원하는 모니터로 옮긴 뒤 [F11]을 누르면 즉시 꽉 찬 전체화면으로 전환됩니다.`;
+#2 [마커 이동 시 시작점 위치 완벽 동기화]
+키보드로 1 + Enter 또는 2 + Enter를 눌러 마커로 이동하면, 대본 첫 줄 시작 위치 설정값(기본 50%) 그대로 정확하게 맞춰 이동합니다!`;
 
 let config = JSON.parse(JSON.stringify(defaultConfig));
 let savedScriptHTML = defaultSampleScript.replace(/\n/g, '<br>');
@@ -1452,6 +1478,10 @@ function isBrCreatingEmptyLine(br) {
   return isBrCreatingEmptyLine(parent);
 }
 
+/* ==========================================================================
+   핵심 수정 1: 큐 마커(#1, #2 등) 변환 시 뒤따르는 공백까지 흡수하고
+   width: 0 플로팅 뱃지(data-cue-label)로 만들어 프리뷰와 송출창의 글자 폭/줄바꿈을 100% 일치시킴!
+   ========================================================================== */
 function preparePrompterHTML(rawHTML) {
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = rawHTML;
@@ -1479,12 +1509,13 @@ function preparePrompterHTML(rawHTML) {
     if (/#(\d+)/.test(val)) {
       const frag = document.createDocumentFragment();
       let lastIdx = 0;
-      val.replace(/#(\d+)/g, (match, digits, offset) => {
+      // #숫자 뒤에 붙은 공백 1칸([ \t]?)까지 함께 매칭하여 마커 숨김 시 공백 차이로 인한 줄바꿈 오차 원천 제거!
+      val.replace(/#(\d+)[ \t]?/g, (match, digits, offset) => {
         if (offset > lastIdx) frag.appendChild(document.createTextNode(val.slice(lastIdx, offset)));
         const markerSpan = document.createElement('span');
         markerSpan.className = 'cue-marker';
         markerSpan.setAttribute('data-cue', digits);
-        markerSpan.textContent = `#${digits}`;
+        markerSpan.setAttribute('data-cue-label', `#${digits}`);
         frag.appendChild(markerSpan);
         lastIdx = offset + match.length;
       });
@@ -1811,6 +1842,11 @@ function cancelPptJump() {
   document.getElementById('pptJumpOverlay').style.display = 'none';
 }
 
+/* ==========================================================================
+   핵심 수정 2: 마커(#1, #2 등) 점프 시 이동 위치 기준을 무조건 '대본 첫 줄 시작 위치(startOffsetPct)'로 통일!
+   - #1이 첫 줄에 있을 때 이동하면 '처음으로(resetToTop)'를 눌렀을 때와 100% 동일한 50% 위치에 놓임!
+   - #2 등 중간/하단 마커로 이동할 때도 해당 줄의 상단이 정확히 '대본 첫 줄 시작 위치(50%)'에 맞춰짐!
+   ========================================================================== */
 function executePptJump() {
   if (!pptDigitBuffer) return;
   const targetNum = pptDigitBuffer;
@@ -1826,20 +1862,32 @@ function executePptJump() {
     return;
   }
 
-  let offsetTop = 0, el = markerEl;
-  while (el && el !== content) {
-    offsetTop += el.offsetTop;
-    el = el.offsetParent;
+  // 마커가 속한 해당 텍스트 줄의 정확한 시작(Top) Y 좌표를 산출
+  const contentRect = content.getBoundingClientRect();
+  const markerRect = markerEl.getBoundingClientRect();
+  const scale = currentPreviewScale || 1;
+
+  // inline baseline 위치(markerRect.top)에서 폰트 높이만큼 위로 올려 해당 줄의 최상단(Line Top) Y 좌표를 구함
+  let markerLineTopInContent = ((markerRect.top - contentRect.top) / scale) - (config.fontSize * 0.85);
+  if (markerLineTopInContent < config.padTop + (config.fontSize * 0.5)) {
+    // 첫 번째 줄에 있는 마커(#1 등)인 경우 정확히 config.padTop(대본 첫 줄 시작점)으로 고정
+    markerLineTopInContent = config.padTop;
   }
-  const leadLinePixelY = (config.leadPos / 100) * config.canvasHeight;
-  const { startY, endY } = getScrollBounds();
-  currentScrollY = Math.max(startY, Math.min(endY, offsetTop - leadLinePixelY + (config.fontSize * 0.35)));
+
+  // 대본 첫 줄 시작 위치(startOffsetPct%, 기본 50%)의 픽셀 좌표
+  const startOffsetPixelY = (config.startOffsetPct / 100) * config.canvasHeight;
+
+  // 마커가 있는 줄의 최상단이 정확히 startOffsetPixelY(50%) 위치에 오도록 스크롤 값 설정
+  const targetScrollY = markerLineTopInContent - startOffsetPixelY;
+
+  const { startY } = getScrollBounds();
+  currentVelocity = 0;
+  currentScrollY = Math.max(startY, targetScrollY);
   applyScrollTransform();
 }
 
 function activateControlZone() {
   setControlZoneActive(true);
-  // 만약 현재 포커스가 에디터에 있으면 해제하여 단축키 충돌을 원천 방지
   if (document.activeElement === document.getElementById('scriptEditor')) {
     document.getElementById('scriptEditor').blur();
   }
@@ -1861,10 +1909,6 @@ function setControlZoneActive(active) {
   }
 }
 
-/* ==========================================================================
-   핵심 수정: 편집자 프리뷰와 프롬프터 송출창 양쪽에서 100% 동일하게 작동하는 통합 단축키 핸들러
-   fromBroadcastWin = true 이면 편집자 창의 포커스 상태와 무관하게 무조건 모든 단축키 즉시 실행!
-   ========================================================================== */
 function handleGlobalKeyDown(e, fromBroadcastWin = false) {
   if (capturingHotkeyAction) {
     e.preventDefault();
@@ -1879,7 +1923,6 @@ function handleGlobalKeyDown(e, fromBroadcastWin = false) {
 
   const keyName = e.code === 'Space' ? 'Space' : e.key;
 
-  // 송출창에서 눌린 키는 에디터 타이핑 중이 아니므로 무조건 컨트롤 모드로 취급!
   let isEditingText = false;
   if (!fromBroadcastWin) {
     isEditingText = document.activeElement === document.getElementById('scriptEditor') ||
@@ -1888,13 +1931,11 @@ function handleGlobalKeyDown(e, fromBroadcastWin = false) {
     isControlZoneActive = true;
   }
 
-  // 1) 송출창 끄기 (기본 ESC)
   if (keyName === config.hotkeys.stopBroadcast) {
     if (pptDigitBuffer) { e.preventDefault(); cancelPptJump(); return; }
     if (broadcastWin && !broadcastWin.closed) { e.preventDefault(); stopBroadcast(); return; }
   }
 
-  // 2) 송출창 전체화면 ON/OFF (기본 F11)
   if (keyName === config.hotkeys.toggleBroadcastFS) {
     if (broadcastWin && !broadcastWin.closed) {
       e.preventDefault();
@@ -1903,31 +1944,26 @@ function handleGlobalKeyDown(e, fromBroadcastWin = false) {
     }
   }
 
-  // 3) 송출창 켜기 (기본 F5)
   if (keyName === config.hotkeys.startBroadcast && !isEditingText) {
     e.preventDefault();
     startBroadcast();
     return;
   }
 
-  // 송출창에서 눌린 게 아닐 때만 에디터 포커스 여부를 체크
   if (!fromBroadcastWin && (isEditingText || !isControlZoneActive)) return;
 
-  // 4) 숫자키(0~9) 입력 시 큐 마커 버퍼 작동
   if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
     e.preventDefault();
     handleDigitInputForCue(e.key);
     return;
   }
 
-  // 5) 숫자 입력 후 Enter 시 해당 마커로 즉시 점프
   if (e.key === 'Enter' && pptDigitBuffer.length > 0) {
     e.preventDefault();
     executePptJump();
     return;
   }
 
-  // 6) 재생/일시정지, 속도 증감, 줄 이동, 최상단 복귀 단축키
   if (keyName === config.hotkeys.playPause) { e.preventDefault(); togglePlay(); }
   else if (keyName === config.hotkeys.speedDown) { e.preventDefault(); changeSpeed(-config.speedStep); }
   else if (keyName === config.hotkeys.speedUp) { e.preventDefault(); changeSpeed(config.speedStep); }
@@ -2270,12 +2306,19 @@ function buildBroadcastWindowHTML() {
   #bPrompterContent { width: 100%; white-space: pre-wrap; word-break: break-word; }
   #bPrompterContent div, #bPrompterContent p { text-align: inherit; }
   .empty-line-spacer { display: block; width: 100%; pointer-events: none; }
+  /* 송출창에서도 큐 마커는 가로 폭을 0px 차지하여 프리뷰와 줄바꿈이 100% 일치함 */
   .cue-marker {
-    display: inline-block; background: rgba(224, 175, 104, 0.25); color: #ff9e64;
-    border: 2px solid #ff9e64; border-radius: 8px; padding: 0 0.25em; margin: 0 0.1em;
-    font-weight: 900; font-size: 0.75em; vertical-align: middle;
+    display: inline-block; position: relative; width: 0; height: 0;
+    overflow: visible; vertical-align: baseline; pointer-events: none;
   }
-  body.hide-cues .cue-marker { display: none !important; }
+  .cue-marker::before {
+    content: attr(data-cue-label);
+    position: absolute; right: 0.25em; bottom: -0.15em;
+    background: rgba(224, 175, 104, 0.28); color: #ff9e64;
+    border: 2px solid #ff9e64; border-radius: 8px; padding: 0.05em 0.3em;
+    font-weight: 900; font-size: 0.65em; line-height: 1.1; white-space: nowrap;
+  }
+  body.hide-cues .cue-marker, body.hide-cues .cue-marker::before { display: none !important; }
   #bLeadLine {
     position: absolute; left: 0; width: 100%; pointer-events: none; z-index: 20;
     transform: translateY(-50%); display: flex; align-items: center; justify-content: space-between;
@@ -2328,7 +2371,6 @@ function buildBroadcastWindowHTML() {
   });
   broadcastWin.addEventListener('mouseup', () => { isMovingWin = false; });
 
-  // 핵심: 송출창을 클릭(포커스)하거나 송출창에서 키를 누를 때 언제나 컨트롤 모드가 즉시 활성화되고 모든 단축키가 100% 작동하도록 직결!
   broadcastWin.addEventListener('focus', () => activateControlZone());
   doc.addEventListener('mousedown', () => activateControlZone());
   broadcastWin.addEventListener('keydown', (e) => {
