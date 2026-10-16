@@ -461,7 +461,7 @@
     <section class="right-pane" id="rightPane" tabindex="0">
       <div class="preview-header">
         <div id="controlFocusBadge" class="focus-status inactive">
-          ✏️ 대본 편집 중 (우측 프리뷰 영역을 클릭하면 단축키 컨트롤 모드가 켜집니다)
+          ✏️ 대본 편집 중 (우측 프리뷰 영역 또는 송출창을 클릭하면 단축키 컨트롤이 작동합니다)
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
           <span id="ratioDisplayBadge" style="color:var(--text-muted);">16:9 (1920x1080)</span>
@@ -585,7 +585,7 @@
         <button onclick="closeModal('hotkeyModal')">✕</button>
       </div>
       <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
-        바꾸고 싶은 항목의 버튼을 클릭한 뒤 키보드의 원하는 키를 누르세요.
+        바꾸고 싶은 항목의 버튼을 클릭한 뒤 키보드의 원하는 키를 누르세요. (프리뷰 및 프롬프터 송출창 양쪽 모두 동일하게 작동합니다)
       </p>
       <div id="hotkeyListContainer"></div>
       <div style="display:flex; justify-content:space-between; margin-top:16px;">
@@ -596,7 +596,7 @@
   </div>
 
 <script>
-const STORAGE_KEY = 'STUDIO_PROMPTER_PRO_V8';
+const STORAGE_KEY = 'STUDIO_PROMPTER_PRO_V9';
 
 const FAVORITE_COLORS = [
   { name: '빨강', hex: '#ff2222' }, { name: '주황', hex: '#ff8800' },
@@ -655,13 +655,12 @@ const defaultConfig = {
   }
 };
 
-const defaultSampleScript = `#1 안녕하십니까. 윈도우/맥 송출창 위치·크기 조절 및 모으기 기능이 탑재된 스튜디오 프롬프터입니다.
+const defaultSampleScript = `#1 안녕하십니까. 전용 스튜디오 아이콘 적용 및 송출창 단축키 완벽 동기화 버전입니다.
 
-모니터 1개에서 테스트하실 때나 송출창이 다른 곳에 있을 때, 상단의 [🧲 송출창 모으기] 버튼을 누르면 송출창이 창모드로 바뀌며 현재 편집자 화면 한가운데로 즉시 모입니다!
+이제 편집자 모니터의 우측 프리뷰 화면을 선택했을 때뿐만 아니라, 프롬프터 송출 창을 마우스로 클릭(선택)한 상태에서도 모든 단축키(Space, 방향키, Backspace, 숫자+Enter 마커 이동, F11, ESC)가 100% 동일하게 작동합니다!
 
 #2 [송출창 자유 이동 & 전체화면 ON/OFF 단축키 (F11)]
-창모드로 줄어든 송출창의 상단 바를 마우스로 잡고 원하는 프롬프터 모니터로 옮기거나 테두리를 잡고 크기를 조절할 수 있습니다.
-원하는 모니터에 옮긴 뒤 단축키 [F11]을 누르면 즉시 꽉 찬 전체화면이 되고, 다시 [F11]을 누르면 전체화면이 해제됩니다!`;
+상단의 [🧲 송출창 모으기]를 누르면 송출창이 현재 화면 중앙으로 창모드로 모이며, 원하는 모니터로 옮긴 뒤 [F11]을 누르면 즉시 꽉 찬 전체화면으로 전환됩니다.`;
 
 let config = JSON.parse(JSON.stringify(defaultConfig));
 let savedScriptHTML = defaultSampleScript.replace(/\n/g, '<br>');
@@ -1840,7 +1839,10 @@ function executePptJump() {
 
 function activateControlZone() {
   setControlZoneActive(true);
-  document.getElementById('rightPane').focus();
+  // 만약 현재 포커스가 에디터에 있으면 해제하여 단축키 충돌을 원천 방지
+  if (document.activeElement === document.getElementById('scriptEditor')) {
+    document.getElementById('scriptEditor').blur();
+  }
 }
 
 function setControlZoneActive(active) {
@@ -1850,16 +1852,20 @@ function setControlZoneActive(active) {
   if (active) {
     rightPane.classList.add('control-active');
     badge.className = 'focus-status active';
-    badge.textContent = '🎮 컨트롤 활성 (Space: 재생/정지 | 방향키: 속도·줄이동 | F11: 송출창 전체화면 ON/OFF)';
+    badge.textContent = '🎮 컨트롤 활성 (프리뷰 및 송출창 어디서든 모든 단축키가 동일하게 작동합니다)';
   } else {
     rightPane.classList.remove('control-active');
     badge.className = 'focus-status inactive';
-    badge.textContent = '✏️ 대본 편집 중 (우측 프리뷰 영역을 클릭하면 단축키 컨트롤 모드가 켜집니다)';
+    badge.textContent = '✏️ 대본 편집 중 (우측 프리뷰 영역 또는 송출창을 클릭하면 단축키 컨트롤이 작동합니다)';
     cancelPptJump();
   }
 }
 
-function handleGlobalKeyDown(e) {
+/* ==========================================================================
+   핵심 수정: 편집자 프리뷰와 프롬프터 송출창 양쪽에서 100% 동일하게 작동하는 통합 단축키 핸들러
+   fromBroadcastWin = true 이면 편집자 창의 포커스 상태와 무관하게 무조건 모든 단축키 즉시 실행!
+   ========================================================================== */
+function handleGlobalKeyDown(e, fromBroadcastWin = false) {
   if (capturingHotkeyAction) {
     e.preventDefault();
     e.stopPropagation();
@@ -1872,14 +1878,23 @@ function handleGlobalKeyDown(e) {
   }
 
   const keyName = e.code === 'Space' ? 'Space' : e.key;
-  const isEditingText = document.activeElement === document.getElementById('scriptEditor') ||
-                        ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
 
+  // 송출창에서 눌린 키는 에디터 타이핑 중이 아니므로 무조건 컨트롤 모드로 취급!
+  let isEditingText = false;
+  if (!fromBroadcastWin) {
+    isEditingText = document.activeElement === document.getElementById('scriptEditor') ||
+                    ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+  } else {
+    isControlZoneActive = true;
+  }
+
+  // 1) 송출창 끄기 (기본 ESC)
   if (keyName === config.hotkeys.stopBroadcast) {
     if (pptDigitBuffer) { e.preventDefault(); cancelPptJump(); return; }
     if (broadcastWin && !broadcastWin.closed) { e.preventDefault(); stopBroadcast(); return; }
   }
 
+  // 2) 송출창 전체화면 ON/OFF (기본 F11)
   if (keyName === config.hotkeys.toggleBroadcastFS) {
     if (broadcastWin && !broadcastWin.closed) {
       e.preventDefault();
@@ -1888,26 +1903,31 @@ function handleGlobalKeyDown(e) {
     }
   }
 
+  // 3) 송출창 켜기 (기본 F5)
   if (keyName === config.hotkeys.startBroadcast && !isEditingText) {
     e.preventDefault();
     startBroadcast();
     return;
   }
 
-  if (isEditingText || !isControlZoneActive) return;
+  // 송출창에서 눌린 게 아닐 때만 에디터 포커스 여부를 체크
+  if (!fromBroadcastWin && (isEditingText || !isControlZoneActive)) return;
 
+  // 4) 숫자키(0~9) 입력 시 큐 마커 버퍼 작동
   if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
     e.preventDefault();
     handleDigitInputForCue(e.key);
     return;
   }
 
+  // 5) 숫자 입력 후 Enter 시 해당 마커로 즉시 점프
   if (e.key === 'Enter' && pptDigitBuffer.length > 0) {
     e.preventDefault();
     executePptJump();
     return;
   }
 
+  // 6) 재생/일시정지, 속도 증감, 줄 이동, 최상단 복귀 단축키
   if (keyName === config.hotkeys.playPause) { e.preventDefault(); togglePlay(); }
   else if (keyName === config.hotkeys.speedDown) { e.preventDefault(); changeSpeed(-config.speedStep); }
   else if (keyName === config.hotkeys.speedUp) { e.preventDefault(); changeSpeed(config.speedStep); }
@@ -1916,7 +1936,7 @@ function handleGlobalKeyDown(e) {
   else if (keyName === config.hotkeys.resetTop) { e.preventDefault(); resetToTop(); }
 }
 
-window.addEventListener('keydown', handleGlobalKeyDown);
+window.addEventListener('keydown', (e) => handleGlobalKeyDown(e, false));
 
 const hotkeyDescriptions = {
   playPause: '재생 / 일시정지',
@@ -2040,6 +2060,7 @@ function getTargetScreenBoundsForBroadcast() {
 function startBroadcast() {
   if (broadcastWin && !broadcastWin.closed) {
     broadcastWin.focus();
+    activateControlZone();
     return;
   }
 
@@ -2223,6 +2244,7 @@ function buildBroadcastWindowHTML() {
   html, body {
     width: 100vw; height: 100vh; overflow: hidden;
     background-color: #000; user-select: none; border: 2px solid #3d59a1;
+    outline: none;
   }
   body.is-fullscreen, :fullscreen body { border: none !important; cursor: none !important; }
   #bWindowBar {
@@ -2261,7 +2283,7 @@ function buildBroadcastWindowHTML() {
   .lead-arrow { font-size: 36px; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.9); padding: 0 10px; }
 </style>
 </head>
-<body>
+<body tabindex="0">
   <div id="bWindowBar">
     <span>✥ <b>프롬프터 송출창 (창모드)</b> — 이 바를 마우스로 잡고 이동하거나 창 모서리로 크기를 조절하세요</span>
     <div class="b-bar-btns">
@@ -2306,10 +2328,13 @@ function buildBroadcastWindowHTML() {
   });
   broadcastWin.addEventListener('mouseup', () => { isMovingWin = false; });
 
+  // 핵심: 송출창을 클릭(포커스)하거나 송출창에서 키를 누를 때 언제나 컨트롤 모드가 즉시 활성화되고 모든 단축키가 100% 작동하도록 직결!
+  broadcastWin.addEventListener('focus', () => activateControlZone());
+  doc.addEventListener('mousedown', () => activateControlZone());
   broadcastWin.addEventListener('keydown', (e) => {
-    setControlZoneActive(true);
-    handleGlobalKeyDown(e);
-  });
+    activateControlZone();
+    handleGlobalKeyDown(e, true);
+  }, true);
 
   doc.getElementById('bStage').addEventListener('dblclick', () => toggleBroadcastFullscreen());
   doc.addEventListener('fullscreenchange', () => {
