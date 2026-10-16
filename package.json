@@ -1,12 +1,12 @@
 {
   "name": "studio-prompter-pro",
-  "version": "1.0.0",
-  "description": "Professional Studio Prompter for Windows and macOS",
+  "version": "1.1.0",
+  "description": "Professional Studio Prompter PRO",
   "main": "main.js",
   "author": "Studio Prompter",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --publish never"
+    "dist": "node generate-icon.js && electron-builder --publish never"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -18,17 +18,27 @@
     "files": [
       "main.js",
       "index.html",
+      "icon.png",
       "package.json"
     ],
     "win": {
+      "icon": "icon.png",
       "target": [
         {
           "target": "portable",
           "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
         }
       ]
     },
+    "portable": {
+      "artifactName": "StudioPrompterPro-Portable.exe"
+    },
     "mac": {
+      "icon": "icon.png",
       "category": "public.app-category.video",
       "identity": null,
       "target": [
