@@ -6,14 +6,13 @@ app.commandLine.appendSwitch('enable-features', 'WindowPlacement');
 let mainWindow;
 
 function createWindow() {
-  // 다중 모니터 및 전체화면 권한을 묻지 않고 자동 승인
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(true);
   });
   session.defaultSession.setPermissionCheckHandler(() => true);
 
   mainWindow = new BrowserWindow({
-    width: 1500,
+    width: 1540,
     height: 920,
     minWidth: 960,
     minHeight: 600,
@@ -29,15 +28,19 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
-  // [프롬프터 송출] 클릭 시 열리는 송출창을 상단바/메뉴바 없는 순수 방송용 창으로 생성
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  // 송출창 생성 설정: 윈도우/맥 모두 창모드에서 크기 조절(resizable) 및 이동(movable), 전체화면(fullscreenable) 완벽 지원
+  mainWindow.webContents.setWindowOpenHandler(() => {
     return {
       action: 'allow',
       overrideBrowserWindowOptions: {
         frame: false,
+        resizable: true,
+        movable: true,
+        minimizable: true,
+        maximizable: true,
+        fullscreenable: true,
         autoHideMenuBar: true,
         backgroundColor: '#000000',
-        fullscreenable: true,
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true
