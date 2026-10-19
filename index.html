@@ -19,17 +19,17 @@
   .top-bar {
     height: 54px; background-color: #0f1018; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0 14px; flex-shrink: 0; gap: 8px;
+    padding: 0 12px; flex-shrink: 0; gap: 6px; overflow-x: auto;
   }
-  .top-bar .logo { font-weight: 800; font-size: 15px; color: #fff; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-  .status-badge { font-size: 11px; padding: 3px 9px; border-radius: 99px; background: var(--bg-input); color: var(--text-muted); font-weight: 700; }
+  .top-bar .logo { font-weight: 800; font-size: 14px; color: #fff; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .status-badge { font-size: 11px; padding: 3px 8px; border-radius: 99px; background: var(--bg-input); color: var(--text-muted); font-weight: 700; }
   .status-badge.on-air { background: rgba(247, 118, 142, 0.2); color: var(--danger); border: 1px solid var(--danger); animation: pulse 1.5s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
-  .view-mode-group { display: flex; background: #1a1d2e; padding: 3px; border-radius: 8px; border: 1px solid var(--border); gap: 4px; }
-  .view-mode-group button { border: none; background: transparent; padding: 5px 10px; font-size: 12px; color: var(--text-muted); border-radius: 6px; }
+  .view-mode-group { display: flex; background: #1a1d2e; padding: 3px; border-radius: 8px; border: 1px solid var(--border); gap: 3px; flex-shrink: 0; }
+  .view-mode-group button { border: none; background: transparent; padding: 5px 8px; font-size: 11.5px; color: var(--text-muted); border-radius: 6px; }
   .view-mode-group button.active-view { background: var(--accent); color: #fff; font-weight: 800; }
-  .top-actions { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; }
+  .top-actions { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
 
   button, select, input[type="number"], input[type="text"] {
     background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border);
@@ -123,33 +123,41 @@
   #prompterScrollTrack { position: absolute; top: 0; left: 0; width: 100%; will-change: transform; }
   #prompterContent { width: 100%; white-space: pre-wrap; word-break: break-word; }
   #prompterContent div, #prompterContent p { text-align: inherit; }
-  .empty-line-spacer { display: block; width: 100%; pointer-events: none; }
+  .empty-line-spacer { display: block; width: 100%; pointer-events: none; position: relative; }
 
-  /* 핵심 수정: 큐 마커(#1, #2 등)가 글자 줄의 가로 폭을 단 0px도 차지하지 않도록 플로팅 뱃지로 처리 -> 프리뷰와 송출창 줄바꿈 100% 일치 보장! */
+  /* 제로-폭(Width: 0) 큐 마커 플로팅 뱃지 -> 프리뷰와 송출창 줄바꿈 100% 일치 */
   .cue-marker {
-    display: inline-block;
-    position: relative;
-    width: 0;
-    height: 0;
-    overflow: visible;
-    vertical-align: baseline;
-    pointer-events: none;
+    display: inline-block; position: relative; width: 0; height: 0;
+    overflow: visible; vertical-align: baseline; pointer-events: none;
   }
   .cue-marker::before {
     content: attr(data-cue-label);
-    position: absolute;
-    right: 0.25em;
-    bottom: -0.15em;
-    background: rgba(224, 175, 104, 0.28);
-    color: #ff9e64;
-    border: 2px solid #ff9e64;
-    border-radius: 8px;
-    padding: 0.05em 0.3em;
-    font-weight: 900;
-    font-size: 0.65em;
-    line-height: 1.1;
-    white-space: nowrap;
+    position: absolute; right: 0.25em; bottom: -0.15em;
+    background: rgba(224, 175, 104, 0.28); color: #ff9e64;
+    border: 2px solid #ff9e64; border-radius: 8px; padding: 0.05em 0.3em;
+    font-weight: 900; font-size: 0.65em; line-height: 1.1; white-space: nowrap;
     box-shadow: 0 2px 8px rgba(0,0,0,0.65);
+  }
+
+  /* 제로-폭(Width: 0) 엔터(↵) 위치 표시 마커 -> 글자 폭이나 줄바꿈에 0px도 영향을 주지 않고 프리뷰에서만 표시! */
+  .enter-vis-mark {
+    display: inline-block; position: relative; width: 0; height: 0;
+    overflow: visible; vertical-align: baseline; pointer-events: none;
+  }
+  #prompterContent.show-enter-marks .enter-vis-mark::before {
+    content: "↵";
+    position: absolute; left: 0.12em; bottom: -0.1em;
+    color: rgba(122, 162, 247, 0.75);
+    font-size: 0.55em; font-weight: 900; line-height: 1;
+    pointer-events: none; user-select: none;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  }
+  #prompterContent.show-enter-marks .empty-line-spacer::before {
+    content: "↵";
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    color: rgba(122, 162, 247, 0.45);
+    font-size: 0.45em; font-weight: 900; line-height: 1;
+    pointer-events: none; user-select: none;
   }
 
   #previewLeadLine { position: absolute; left: 0; width: 100%; pointer-events: none; z-index: 15; transform: translateY(-50%); display: flex; align-items: center; justify-content: space-between; }
@@ -177,6 +185,9 @@
 </head>
 <body>
 
+  <!-- 숨겨진 TXT 파일 불러오기 입력기 -->
+  <input type="file" id="projectFileInput" accept=".txt,text/plain" style="display:none;" onchange="handleProjectFileLoad(event)">
+
   <header class="top-bar">
     <div class="logo">
       <span>🎬 STUDIO PROMPTER</span>
@@ -190,12 +201,21 @@
     </div>
 
     <div class="top-actions">
+      <!-- 프로젝트(.txt) 저장 및 불러오기 -->
+      <button onclick="saveProjectToTxt()" title="대본 내용과 모든 설정값을 .txt 파일로 저장합니다">💾 저장(.txt)</button>
+      <button onclick="triggerLoadTxt()" title="저장한 프로젝트 .txt 파일 또는 일반 .txt 대본 파일을 불러옵니다">📂 불러오기(.txt)</button>
+
+      <!-- 요청사항: 송출창 설정 바로 왼쪽에 편집 위치 프리뷰 추적 ON/OFF 버튼 배치 -->
+      <button id="btnSyncEditorToPreview" class="active-toggle" onclick="toggleConfigBool('syncEditorCaretToPreview', 'btnSyncEditorToPreview')" title="편집 중 현재 커서 위치를 우측 프리뷰 화면에 자동으로 맞춰 보여줍니다">
+        🔗 편집위치 추적 ON
+      </button>
+
       <button onclick="openModal('monitorModal')">🖥️ 송출창 설정</button>
       <button id="btnBroadcast" class="btn-primary" onclick="startBroadcast()">📡 프롬프터 송출 (<span id="lblKeyBroadcast">F5</span>)</button>
-      <button id="btnToggleBroadcastFS" onclick="toggleBroadcastFullscreen()" style="display:none;" title="송출창 전체화면 꽉 채우기 / 창모드 해제">
+      <button id="btnToggleBroadcastFS" onclick="toggleBroadcastFullscreen()" style="display:none;">
         ⛶ 송출창 전체화면 (<span id="lblKeyBroadcastFS">F11</span>)
       </button>
-      <button id="btnGatherBroadcast" onclick="gatherBroadcastToEditor()" style="display:none;" title="송출창을 창모드로 전환하여 현재 편집자 화면 중앙으로 가져옵니다">
+      <button id="btnGatherBroadcast" onclick="gatherBroadcastToEditor()" style="display:none;">
         🧲 송출창 모으기
       </button>
       <button id="btnCloseBroadcast" class="btn-danger" onclick="stopBroadcast()" style="display:none;">
@@ -273,7 +293,7 @@
             </div>
             <div class="control-row" style="gap:4px;">
               <button style="font-size:11px; padding:3px 6px;" onmousedown="event.preventDefault()" onclick="syncParaGap(0, true)">0.0배</button>
-              <button style="font-size:11px; padding:3px 6px;" onmousedown="event.preventDefault()" onclick="syncParaGap(0.3, true)">0.3배(기본)</button>
+              <button style="font-size:11px; padding:3px 6px;" onmousedown="event.preventDefault()" onclick="syncParaGap(0.3, true)">0.3배</button>
               <button id="btnNoParaGap" style="flex:1; font-size:11px; padding:3px 6px;" onmousedown="event.preventDefault()" onclick="toggleNoParaGapOnSelection()">
                 🚫 선택구간 제외
               </button>
@@ -411,21 +431,24 @@
           </div>
 
           <div class="control-item">
-            <label>송출 모니터 반전 & 마커 숨김</label>
+            <label>송출 모니터 반전 & 마커/엔터 표시</label>
             <div class="control-row">
               <button id="btnFlipX" style="flex:1" onclick="toggleConfigBool('flipX', 'btnFlipX')">↔ 좌우반전</button>
               <button id="btnFlipY" style="flex:1" onclick="toggleConfigBool('flipY', 'btnFlipY')">↕ 상하반전</button>
             </div>
             <div class="control-row">
-              <button id="btnHideMarkers" style="width:100%" class="active-toggle" onclick="toggleConfigBool('hideCueOnOutput', 'btnHideMarkers')">
-                송출 모니터 #마커 숨김: ON
+              <button id="btnHideMarkers" style="flex:1" class="active-toggle" onclick="toggleConfigBool('hideCueOnOutput', 'btnHideMarkers')">
+                송출 #마커 숨김: ON
+              </button>
+              <button id="btnShowEnterMarks" style="flex:1" onclick="toggleConfigBool('showEnterInPreview', 'btnShowEnterMarks')" title="편집자 프리뷰에만 엔터(↵) 위치를 표시하며 송출창과 줄바꿈은 100% 동일합니다">
+                ↵ 프리뷰 엔터표시: OFF
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 탭 4 -->
+      <!-- 탭 4 (속도 증감폭 기본값 2 적용) -->
       <div id="tabScroll" class="tab-content">
         <div class="control-grid">
           <div class="control-item">
@@ -445,10 +468,10 @@
           </div>
 
           <div class="control-item">
-            <label>좌/우 방향키 1회 속도 증감폭 <span id="valSpeedStep">5</span></label>
+            <label>좌/우 방향키 1회 속도 증감폭 <span id="valSpeedStep">2</span></label>
             <div class="control-row">
-              <input type="range" id="speedStepRange" min="1" max="25" value="5" oninput="syncSpeedStep(this.value, true)">
-              <input type="number" id="speedStepNum" class="enter-apply" min="1" max="50" value="5" data-action="speedStep">
+              <input type="range" id="speedStepRange" min="1" max="25" value="2" oninput="syncSpeedStep(this.value, true)">
+              <input type="number" id="speedStepNum" class="enter-apply" min="1" max="50" value="2" data-action="speedStep">
             </div>
           </div>
 
@@ -469,6 +492,9 @@
           <span id="formatScopeBadge" class="mode-indicator mode-global">🌐 전체 서식 적용 모드 (본문 드래그 시 부분 적용)</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px;">
+          <button id="btnToolbarShowEnter" onmousedown="event.preventDefault()" onclick="toggleConfigBool('showEnterInPreview', 'btnShowEnterMarks')" title="편집자 프리뷰에서 엔터 친 위치(↵)를 표시합니다 (송출 화면과 줄바꿈 100% 동일)">
+            ↵ 엔터표시: OFF
+          </button>
           <button id="btnToolbarNoParaGap" onmousedown="event.preventDefault()" onclick="toggleNoParaGapOnSelection()">
             🚫 빈줄간격 제외
           </button>
@@ -482,7 +508,7 @@
       </div>
     </section>
 
-    <div class="resizer" id="paneResizer" title="드래그하여 좌우 화면 비율을 조절하세요"></div>
+    <div class="resizer" id="paneResizer"></div>
 
     <section class="right-pane" id="rightPane" tabindex="0">
       <div class="preview-header">
@@ -507,7 +533,7 @@
           </div>
         </div>
 
-        <div class="yt-progress-container" id="ytProgressBar" title="포인트를 잡고 드래그하여 원하는 위치로 이동하세요">
+        <div class="yt-progress-container" id="ytProgressBar">
           <div class="yt-progress-track">
             <div class="yt-progress-fill" id="ytProgressFill"></div>
             <div class="yt-progress-thumb" id="ytProgressThumb"></div>
@@ -515,7 +541,8 @@
         </div>
       </div>
 
-      <div class="preview-stage" id="previewStage" title="마우스 휠을 굴리거나 클릭한 채 위아래로 드래그하여 대본 위치를 이동할 수 있습니다">
+      <!-- 요청사항: 마우스를 올려두었을 때 뜨던 불필요한 안내글(title 속성) 삭제 완료 -->
+      <div class="preview-stage" id="previewStage">
         <div id="pptJumpOverlay">
           <div style="font-size:12px; color:var(--text-muted);">이동할 큐 마커 (Enter 입력)</div>
           <div class="jump-num" id="pptJumpText">#1</div>
@@ -549,14 +576,15 @@
           <button style="height:36px;" onclick="moveByLines(1)">▼ 다음 줄</button>
         </div>
 
+        <!-- 기본 속도 +10 및 증감폭 2 적용 -->
         <div class="speed-control">
           <button onclick="changeSpeed(-config.speedStep)">◀ 감속</button>
-          <input type="range" id="speedSlider" min="-100" max="100" value="25" style="max-width:160px;" oninput="setTargetSpeed(+this.value)">
+          <input type="range" id="speedSlider" min="-100" max="100" value="10" style="max-width:160px;" oninput="setTargetSpeed(+this.value)">
           <button onclick="changeSpeed(config.speedStep)">가속 ▶</button>
 
           <div class="speed-direct-box">
             <span style="font-size:11px; color:var(--text-muted);">속도입력:</span>
-            <input type="text" id="speedDirectInput" value="+25"
+            <input type="text" id="speedDirectInput" value="+10"
                    onkeydown="handleDirectSpeedKey(event)"
                    onblur="applyDirectSpeedInput()"
                    onclick="event.stopPropagation(); this.select();">
@@ -622,7 +650,8 @@
   </div>
 
 <script>
-const STORAGE_KEY = 'STUDIO_PROMPTER_PRO_V10';
+const STORAGE_KEY = 'STUDIO_PROMPTER_PRO_V11';
+const PROJECT_META_DELIMITER = '\n\n=== [STUDIO_PROMPTER_PROJECT_SETTINGS_DO_NOT_EDIT_BELOW] ===\n';
 
 const FAVORITE_COLORS = [
   { name: '빨강', hex: '#ff2222' }, { name: '주황', hex: '#ff8800' },
@@ -660,8 +689,10 @@ const defaultConfig = {
   flipX: false,
   flipY: false,
   hideCueOnOutput: true,
-  targetSpeed: 25,
-  speedStep: 5,
+  showEnterInPreview: false,       // 편집자 프리뷰에서 엔터(↵) 위치 표시 ON/OFF
+  syncEditorCaretToPreview: true,  // 편집 중 커서 위치를 프리뷰에 자동 동기화 ON/OFF
+  targetSpeed: 10,                 // 기본 속도: +10
+  speedStep: 2,                    // 속도 증감 기준: 2
   dampingSec: 0.3,
   jumpLines: 1,
   allowMouseControlWhilePlaying: false,
@@ -681,12 +712,12 @@ const defaultConfig = {
   }
 };
 
-const defaultSampleScript = `#1 안녕하십니까. 전용 스튜디오 아이콘 적용 및 송출창 단축키 완벽 동기화 버전입니다.
+const defaultSampleScript = `#1 안녕하십니까. 한글(HWP)·메모장 줄바꿈 삭제 개선 및 프로젝트(.txt) 저장·불러오기가 탑재된 버전입니다.
 
-이제 편집자 모니터의 우측 프리뷰 화면과 프롬프터 송출 창의 글자 줄바꿈 위치가 단 한 글자의 오차도 없이 100% 똑같이 일치합니다!
+상단의 [💾 저장(.txt)] 버튼을 누르면 대본과 모든 설정값이 포함된 txt 파일이 저장되며, [📂 불러오기(.txt)]로 언제든 복원하거나 일반 메모장 txt 파일도 바로 불러올 수 있습니다.
 
-#2 [마커 이동 시 시작점 위치 완벽 동기화]
-키보드로 1 + Enter 또는 2 + Enter를 눌러 마커로 이동하면, 대본 첫 줄 시작 위치 설정값(기본 50%) 그대로 정확하게 맞춰 이동합니다!`;
+#2 [편집 위치 실시간 추적 & 재생 중 편집창 자동 스크롤]
+상단 송출창 설정 왼쪽의 [🔗 편집위치 추적 ON]을 켜두면 대본을 수정하는 위치가 프리뷰에 즉시 나타나며, 프롬프터 재생 중에는 좌측 편집창도 가볍게 함께 스크롤되어 언제 멈춰도 바로 수정할 수 있습니다!`;
 
 let config = JSON.parse(JSON.stringify(defaultConfig));
 let savedScriptHTML = defaultSampleScript.replace(/\n/g, '<br>');
@@ -695,6 +726,7 @@ let isPlaying = false;
 let currentScrollY = 0;
 let currentVelocity = 0;
 let lastFrameTime = performance.now();
+let lastEditorAutoScrollTime = 0; // 리소스 절약을 위한 저부하(4Hz) 에디터 스크롤 타이머
 let currentPreviewScale = 0.3;
 
 let detectedScreens = [];
@@ -717,6 +749,7 @@ let isDraggingPreviewStage = false;
 
 window.addEventListener('DOMContentLoaded', () => {
   loadStateFromStorage();
+  normalizeEditorDOMStructure();
   renderColorPresets();
   initUIValues();
   initEditorEvents();
@@ -739,6 +772,254 @@ window.addEventListener('DOMContentLoaded', () => {
   requestAnimationFrame(animationLoop);
 });
 
+/* ==========================================================================
+   1. 한글(HWP, HWPX) 및 메모장 줄바꿈 정규화 엔진
+      - \r\n, \r, \u2028, \u2029 및 불필요한 중첩 블록을 단일 <br>로 통일하여
+        백스페이스 딱 1번에 줄바꿈이 즉시 지워지도록 보장!
+   ========================================================================== */
+function convertPlainTextToCleanHTML(text) {
+  if (!text) return '';
+  const normalized = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[\u2028\u2029]/g, '\n')
+    .replace(/\u200B/g, '');
+
+  const escaped = normalized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  return escaped.split('\n').join('<br>');
+}
+
+function normalizeEditorDOMStructure() {
+  const editor = document.getElementById('scriptEditor');
+  if (!editor) return;
+
+  // 텍스트 노드 내부에 숨어있는 \r\n 또는 \n을 단일 <br> 노드로 변환하여 백스페이스 두 번 입력 현상 원천 차단
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach(node => {
+    const val = node.nodeValue;
+    if (val && /[\r\n\u2028\u2029\u200B]/.test(val)) {
+      const clean = val.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/[\u2028\u2029]/g, '\n').replace(/\u200B/g, '');
+      if (clean.includes('\n')) {
+        const parts = clean.split('\n');
+        const frag = document.createDocumentFragment();
+        parts.forEach((p, idx) => {
+          if (p.length > 0) frag.appendChild(document.createTextNode(p));
+          if (idx < parts.length - 1) frag.appendChild(document.createElement('br'));
+        });
+        node.parentNode.replaceChild(frag, node);
+      } else {
+        node.nodeValue = clean;
+      }
+    }
+  });
+}
+
+function insertNormalizedPlainTextAtCaret(rawText) {
+  const editor = document.getElementById('scriptEditor');
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+
+  const cleanText = (rawText || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[\u2028\u2029]/g, '\n')
+    .replace(/\u200B/g, '');
+
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+
+  const lines = cleanText.split('\n');
+  const frag = document.createDocumentFragment();
+  let lastInsertedNode = null;
+
+  lines.forEach((line, idx) => {
+    if (line.length > 0) {
+      const tNode = document.createTextNode(line);
+      frag.appendChild(tNode);
+      lastInsertedNode = tNode;
+    }
+    if (idx < lines.length - 1) {
+      const br = document.createElement('br');
+      frag.appendChild(br);
+      lastInsertedNode = br;
+    }
+  });
+
+  // 맨 끝이 <br>로 끝나는 경우 브라우저에서 커서가 아랫줄로 내려가 보이도록 빈 텍스트 노드 보강
+  if (lastInsertedNode && lastInsertedNode.nodeName === 'BR' && ! editor.lastChild) {
+    const extraBr = document.createElement('br');
+    frag.appendChild(extraBr);
+  }
+
+  range.insertNode(frag);
+
+  if (lastInsertedNode) {
+    const newRange = document.createRange();
+    newRange.setStartAfter(lastInsertedNode);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  }
+}
+
+/* ==========================================================================
+   2. 프로젝트(.txt) 저장 및 불러오기 (일반 .txt 파일 완벽 호환)
+   ========================================================================== */
+function saveProjectToTxt() {
+  const editor = document.getElementById('scriptEditor');
+  const clone = editor.cloneNode(true);
+  clone.querySelectorAll('.active-selection-lock').forEach(el => el.classList.remove('active-selection-lock'));
+
+  // 일반 텍스트 에디터(메모장)로 열었을 때도 대본 내용을 바로 읽을 수 있도록 상단에는 순수 텍스트 배치
+  let plainScript = clone.innerHTML
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p)>/gi, '\n')
+    .replace(/<[^>]+>/g, '');
+  const tempDecode = document.createElement('textarea');
+  tempDecode.innerHTML = plainScript;
+  plainScript = tempDecode.value;
+
+  const projectPayload = {
+    version: 11,
+    savedAt: new Date().toISOString(),
+    config: config,
+    scriptHTML: clone.innerHTML
+  };
+
+  const fullTxtContent = plainScript + PROJECT_META_DELIMITER + JSON.stringify(projectPayload, null, 2);
+  const blob = new Blob([fullTxtContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `프롬프터_프로젝트_${dateStr}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function triggerLoadTxt() {
+  const fileInput = document.getElementById('projectFileInput');
+  fileInput.value = '';
+  fileInput.click();
+}
+
+function handleProjectFileLoad(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const content = String(e.target.result || '');
+    clearLockedPartialSelection();
+
+    const delimIdx = content.indexOf(PROJECT_META_DELIMITER);
+    if (delimIdx !== -1) {
+      // 1) 프롬프터 프로그램에서 저장한 프로젝트 .txt 파일인 경우 -> 모든 설정값 + 서식 대본 완벽 복원!
+      const jsonPart = content.slice(delimIdx + PROJECT_META_DELIMITER.length).trim();
+      try {
+        const parsed = JSON.parse(jsonPart);
+        if (parsed.config) {
+          config = Object.assign({}, defaultConfig, parsed.config);
+          config.hotkeys = Object.assign({}, defaultConfig.hotkeys, parsed.config.hotkeys || {});
+        }
+        if (typeof parsed.scriptHTML === 'string') {
+          savedScriptHTML = parsed.scriptHTML;
+        } else {
+          const plainPart = content.slice(0, delimIdx);
+          savedScriptHTML = convertPlainTextToCleanHTML(plainPart);
+        }
+        initUIValues();
+        normalizeEditorDOMStructure();
+        setViewMode(config.viewMode || 'split', false);
+        renderPrompterDOM();
+        resetToTop(false);
+        updatePreviewScale();
+        saveStateToStorage();
+        alert(`프로젝트 파일(${file.name})의 대본과 모든 설정값을 성공적으로 불러왔습니다!`);
+        return;
+      } catch (err) {
+        console.warn('프로젝트 메타데이터 파싱 실패, 일반 텍스트로 불러옵니다:', err);
+      }
+    }
+
+    // 2) 외부(윈도우 메모장 등)에서 만든 일반 .txt 파일인 경우 -> 본문 대본으로 깔끔하게 정규화하여 불러오기!
+    savedScriptHTML = convertPlainTextToCleanHTML(content);
+    document.getElementById('scriptEditor').innerHTML = savedScriptHTML;
+    normalizeEditorDOMStructure();
+    renderPrompterDOM();
+    resetToTop(false);
+    saveStateToStorage();
+    alert(`일반 텍스트 파일(${file.name})을 대본으로 불러왔습니다!`);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+/* ==========================================================================
+   3. 편집 중 커서 위치 -> 프리뷰 실시간 동기화 & 재생 중 편집창 저부하 스크롤
+   ========================================================================== */
+function syncPreviewToEditorCaret() {
+  if (!config.syncEditorCaretToPreview || isPlaying) return;
+  const editor = document.getElementById('scriptEditor');
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !editor.contains(sel.anchorNode)) return;
+
+  const range = sel.getRangeAt(0).cloneRange();
+  range.collapse(true);
+
+  // 커서의 에디터 내 상대 위치를 측정하기 위한 임시 마커 삽입 후 즉시 제거
+  const tempMarker = document.createElement('span');
+  tempMarker.textContent = '\u200B';
+  range.insertNode(tempMarker);
+
+  const editorRect = editor.getBoundingClientRect();
+  const markerRect = tempMarker.getBoundingClientRect();
+  const caretOffsetInEditor = (markerRect.top - editorRect.top) + editor.scrollTop;
+
+  const parent = tempMarker.parentNode;
+  tempMarker.remove();
+  if (parent) parent.normalize();
+
+  const totalEditorHeight = Math.max(1, editor.scrollHeight - 36);
+  const ratio = Math.max(0, Math.min(1, (caretOffsetInEditor - 18) / totalEditorHeight));
+
+  const { startY, endY } = getScrollBounds();
+  currentScrollY = startY + (endY - startY) * ratio;
+  currentVelocity = 0;
+  applyScrollTransform();
+}
+
+// 프롬프터 재생 중일 때 0.25초(4Hz) 간격으로만 가볍게 좌측 편집창 스크롤을 동기화하여 리소스 소모 최소화
+function syncEditorScrollDuringPlayback(now) {
+  if (!isPlaying || config.viewMode === 'preview') return;
+  if (now - lastEditorAutoScrollTime < 250) return;
+  lastEditorAutoScrollTime = now;
+
+  const editor = document.getElementById('scriptEditor');
+  if (!editor || document.activeElement === editor) return;
+
+  const { startY, endY, totalDist } = getScrollBounds();
+  if (endY <= startY) return;
+
+  const progress = Math.max(0, Math.min(1, (currentScrollY - startY) / totalDist));
+  const maxEditorScroll = Math.max(0, editor.scrollHeight - editor.clientHeight);
+  editor.scrollTop = maxEditorScroll * progress;
+}
+
+/* ==========================================================================
+   4. 기본 UI 및 설정 초기화
+   ========================================================================== */
 function renderColorPresets() {
   const buildSwatches = (containerId, callback) => {
     const wrap = document.getElementById(containerId);
@@ -783,7 +1064,7 @@ function saveStateToStorage() {
 }
 
 function resetAllSettings() {
-  if (!confirm('모든 환경설정을 초기 기본값으로 되돌리시겠습니까?')) return;
+  if (!confirm('모든 환경설정을 초기 기본값(속도 +10, 증감폭 2 등)으로 되돌리시겠습니까?')) return;
   clearLockedPartialSelection();
   config = JSON.parse(JSON.stringify(defaultConfig));
   initUIValues();
@@ -1004,7 +1285,9 @@ function initUIValues() {
 
   updateToggleButtonUI('flipX', 'btnFlipX', '↔ 좌우반전 ON', '↔ 좌우반전 OFF');
   updateToggleButtonUI('flipY', 'btnFlipY', '↕ 상하반전 ON', '↕ 상하반전 OFF');
-  updateToggleButtonUI('hideCueOnOutput', 'btnHideMarkers', '송출 모니터 #마커 숨김: ON', '송출 모니터 #마커 숨김: OFF');
+  updateToggleButtonUI('hideCueOnOutput', 'btnHideMarkers', '송출 #마커 숨김: ON', '송출 #마커 숨김: OFF');
+  updateEnterMarkToggleUI();
+  updateToggleButtonUI('syncEditorCaretToPreview', 'btnSyncEditorToPreview', '🔗 편집위치 추적 ON', '🔗 편집위치 추적 OFF');
 
   document.getElementById('dampingRange').value = config.dampingSec;
   document.getElementById('dampingNum').value = config.dampingSec;
@@ -1025,6 +1308,11 @@ function initUIValues() {
   updateSpeedInputUI();
   updatePasteModeUI();
   updateHotkeyLabels();
+}
+
+function updateEnterMarkToggleUI() {
+  updateToggleButtonUI('showEnterInPreview', 'btnShowEnterMarks', '↵ 프리뷰 엔터표시: ON', '↵ 프리뷰 엔터표시: OFF');
+  updateToggleButtonUI('showEnterInPreview', 'btnToolbarShowEnter', '↵ 엔터표시: ON', '↵ 엔터표시: OFF');
 }
 
 function updateAlignButtonsUI() {
@@ -1084,6 +1372,17 @@ function initEditorEvents() {
     clearLockedPartialSelection();
   });
 
+  // 에디터에서 엔터 키 입력 시 <div>/<p> 대신 깔끔한 단일 <br>이 삽입되도록 제어 -> 백스페이스 1번으로 즉시 삭제 보장!
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      insertNormalizedPlainTextAtCaret('\n');
+      renderPrompterDOM();
+      syncPreviewToEditorCaret();
+      saveStateToStorage();
+    }
+  });
+
   const checkAndLockEditorSelection = () => {
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
@@ -1098,18 +1397,39 @@ function initEditorEvents() {
         let node = range.commonAncestorContainer;
         if (node.nodeType === 3) node = node.parentElement;
         updateNoParaGapButtonState(node?.closest?.('[data-no-para-gap="true"]'));
+      } else {
+        // 드래그가 아닌 일반 커서 이동/클릭일 때 프리뷰가 해당 편집 위치를 추적하도록 호출
+        syncPreviewToEditorCaret();
       }
     }
   };
 
   editor.addEventListener('mouseup', () => setTimeout(checkAndLockEditorSelection, 10));
   editor.addEventListener('keyup', () => setTimeout(checkAndLockEditorSelection, 10));
-  editor.addEventListener('input', () => { renderPrompterDOM(); saveStateToStorage(); });
+  editor.addEventListener('input', () => {
+    normalizeEditorDOMStructure();
+    renderPrompterDOM();
+    syncPreviewToEditorCaret();
+    saveStateToStorage();
+  });
+
+  // 한글(HWP, HWPX) 및 메모장 붙여넣기 시 줄바꿈 정규화 처리
   editor.addEventListener('paste', (e) => {
+    const clip = e.clipboardData || window.clipboardData;
     if (config.pastePlainText) {
       e.preventDefault();
-      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      document.execCommand('insertText', false, text);
+      const text = clip.getData('text/plain');
+      insertNormalizedPlainTextAtCaret(text);
+      renderPrompterDOM();
+      syncPreviewToEditorCaret();
+      saveStateToStorage();
+    } else {
+      setTimeout(() => {
+        normalizeEditorDOMStructure();
+        renderPrompterDOM();
+        syncPreviewToEditorCaret();
+        saveStateToStorage();
+      }, 10);
     }
   });
 }
@@ -1138,8 +1458,9 @@ function insertCueMarkerSample() {
   if (!cleanNum) return;
   const editor = document.getElementById('scriptEditor');
   editor.focus();
-  document.execCommand('insertText', false, ` #${cleanNum} `);
+  insertNormalizedPlainTextAtCaret(` #${cleanNum} `);
   renderPrompterDOM();
+  saveStateToStorage();
 }
 
 function ensureLockedPartialSpan() {
@@ -1266,13 +1587,15 @@ function clearPartialFormat() {
   const targetSpan = ensureLockedPartialSpan();
   if (targetSpan) {
     ['data-p-fontsize', 'data-p-letterspacing', 'data-p-lineheight', 'data-p-align', 'data-no-para-gap', 'style'].forEach(a => targetSpan.removeAttribute(a));
-    targetSpan.textContent = targetSpan.innerText;
+    const plain = targetSpan.innerText;
+    targetSpan.innerHTML = convertPlainTextToCleanHTML(plain);
     updateNoParaGapButtonState(targetSpan);
     renderPrompterDOM();
     saveStateToStorage();
     return;
   }
-  editor.textContent = editor.innerText;
+  const plainAll = editor.innerText;
+  editor.innerHTML = convertPlainTextToCleanHTML(plainAll);
   config.textColor = '#ffffff';
   document.getElementById('textColorPicker').value = '#ffffff';
   clearLockedPartialSelection();
@@ -1372,7 +1695,7 @@ function syncJumpLines(val) {
   saveStateToStorage();
 }
 function syncSpeedStep(val) {
-  const v = Math.max(1, Math.min(50, parseInt(val || 5, 10)));
+  const v = Math.max(1, Math.min(50, parseInt(val || 2, 10)));
   config.speedStep = v;
   document.getElementById('speedStepRange').value = Math.min(25, v);
   document.getElementById('speedStepNum').value = v;
@@ -1389,7 +1712,12 @@ function toggleConfigBool(key, btnId) {
   if (key === 'leadEnabled') updateToggleButtonUI(key, btnId, '리드선 ON', '리드선 OFF');
   if (key === 'flipX') updateToggleButtonUI(key, btnId, '↔ 좌우반전 ON', '↔ 좌우반전 OFF');
   if (key === 'flipY') updateToggleButtonUI(key, btnId, '↕ 상하반전 ON', '↕ 상하반전 OFF');
-  if (key === 'hideCueOnOutput') updateToggleButtonUI(key, btnId, '송출 모니터 #마커 숨김: ON', '송출 모니터 #마커 숨김: OFF');
+  if (key === 'hideCueOnOutput') updateToggleButtonUI(key, btnId, '송출 #마커 숨김: ON', '송출 #마커 숨김: OFF');
+  if (key === 'showEnterInPreview') updateEnterMarkToggleUI();
+  if (key === 'syncEditorCaretToPreview') {
+    updateToggleButtonUI(key, btnId, '🔗 편집위치 추적 ON', '🔗 편집위치 추적 OFF');
+    if (config.syncEditorCaretToPreview) syncPreviewToEditorCaret();
+  }
   if (key === 'allowMouseControlWhilePlaying') updateToggleButtonUI(key, btnId, '재생 중 마우스 휠/드래그: 허용 ON', '재생 중 마우스 휠/드래그: 차단 OFF');
   if (key === 'startBroadcastFullscreen') updateToggleButtonUI(key, btnId, '송출 시작 시 자동으로 꽉 찬 전체화면: ON', '송출 시작 시 자동으로 꽉 찬 전체화면: OFF (창모드 시작)');
   renderPrompterDOM();
@@ -1448,7 +1776,14 @@ function applyEmptyLineOnlyRatio(container) {
 
   Array.from(container.querySelectorAll('br')).forEach(br => {
     if (br.closest('[data-no-para-gap="true"]')) return;
-    if (isBrCreatingEmptyLine(br)) br.replaceWith(createEmptyLineSpacerNode(emptyLinePx));
+    if (isBrCreatingEmptyLine(br)) {
+      br.replaceWith(createEmptyLineSpacerNode(emptyLinePx));
+    } else {
+      // 일반 줄바꿈(<br>) 바로 앞에 폭 0px짜리 엔터 표시 마커(enter-vis-mark)를 붙여 프리뷰 엔터 표시 기능 지원 (줄바꿈 위치 영향 0%)
+      const enterMark = document.createElement('span');
+      enterMark.className = 'enter-vis-mark';
+      br.parentNode.insertBefore(enterMark, br);
+    }
   });
 }
 
@@ -1478,10 +1813,6 @@ function isBrCreatingEmptyLine(br) {
   return isBrCreatingEmptyLine(parent);
 }
 
-/* ==========================================================================
-   핵심 수정 1: 큐 마커(#1, #2 등) 변환 시 뒤따르는 공백까지 흡수하고
-   width: 0 플로팅 뱃지(data-cue-label)로 만들어 프리뷰와 송출창의 글자 폭/줄바꿈을 100% 일치시킴!
-   ========================================================================== */
 function preparePrompterHTML(rawHTML) {
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = rawHTML;
@@ -1509,7 +1840,6 @@ function preparePrompterHTML(rawHTML) {
     if (/#(\d+)/.test(val)) {
       const frag = document.createDocumentFragment();
       let lastIdx = 0;
-      // #숫자 뒤에 붙은 공백 1칸([ \t]?)까지 함께 매칭하여 마커 숨김 시 공백 차이로 인한 줄바꿈 오차 원천 제거!
       val.replace(/#(\d+)[ \t]?/g, (match, digits, offset) => {
         if (offset > lastIdx) frag.appendChild(document.createTextNode(val.slice(lastIdx, offset)));
         const markerSpan = document.createElement('span');
@@ -1558,6 +1888,9 @@ function renderPrompterDOM() {
   content.style.paddingRight = config.padRight + 'px';
   content.style.paddingTop = config.padTop + 'px';
   content.style.paddingBottom = config.padBottom + 'px';
+
+  // 편집자 프리뷰 전용 엔터(↵) 위치 표시 클래스 토글 (송출창에는 영향 없음)
+  content.classList.toggle('show-enter-marks', !!config.showEnterInPreview);
   content.innerHTML = processedHTML;
 
   leadLine.style.display = config.leadEnabled ? 'flex' : 'none';
@@ -1738,6 +2071,8 @@ function animationLoop(now) {
         if (isPlaying && config.targetSpeed > 0) { currentVelocity = 0; togglePlay(false); }
       }
       applyScrollTransform();
+      // 재생 중 저부하(0.25초 주기) 에디터 스크롤 동기화 실행
+      syncEditorScrollDuringPlayback(now);
     }
   }
   requestAnimationFrame(animationLoop);
@@ -1772,6 +2107,8 @@ function resetToTop(stopPlay = true) {
   currentVelocity = 0;
   currentScrollY = getInitialScrollY();
   applyScrollTransform();
+  const editor = document.getElementById('scriptEditor');
+  if (editor) editor.scrollTop = 0;
 }
 
 function setTargetSpeed(val) {
@@ -1842,11 +2179,6 @@ function cancelPptJump() {
   document.getElementById('pptJumpOverlay').style.display = 'none';
 }
 
-/* ==========================================================================
-   핵심 수정 2: 마커(#1, #2 등) 점프 시 이동 위치 기준을 무조건 '대본 첫 줄 시작 위치(startOffsetPct)'로 통일!
-   - #1이 첫 줄에 있을 때 이동하면 '처음으로(resetToTop)'를 눌렀을 때와 100% 동일한 50% 위치에 놓임!
-   - #2 등 중간/하단 마커로 이동할 때도 해당 줄의 상단이 정확히 '대본 첫 줄 시작 위치(50%)'에 맞춰짐!
-   ========================================================================== */
 function executePptJump() {
   if (!pptDigitBuffer) return;
   const targetNum = pptDigitBuffer;
@@ -1862,22 +2194,16 @@ function executePptJump() {
     return;
   }
 
-  // 마커가 속한 해당 텍스트 줄의 정확한 시작(Top) Y 좌표를 산출
   const contentRect = content.getBoundingClientRect();
   const markerRect = markerEl.getBoundingClientRect();
   const scale = currentPreviewScale || 1;
 
-  // inline baseline 위치(markerRect.top)에서 폰트 높이만큼 위로 올려 해당 줄의 최상단(Line Top) Y 좌표를 구함
   let markerLineTopInContent = ((markerRect.top - contentRect.top) / scale) - (config.fontSize * 0.85);
   if (markerLineTopInContent < config.padTop + (config.fontSize * 0.5)) {
-    // 첫 번째 줄에 있는 마커(#1 등)인 경우 정확히 config.padTop(대본 첫 줄 시작점)으로 고정
     markerLineTopInContent = config.padTop;
   }
 
-  // 대본 첫 줄 시작 위치(startOffsetPct%, 기본 50%)의 픽셀 좌표
   const startOffsetPixelY = (config.startOffsetPct / 100) * config.canvasHeight;
-
-  // 마커가 있는 줄의 최상단이 정확히 startOffsetPixelY(50%) 위치에 오도록 스크롤 값 설정
   const targetScrollY = markerLineTopInContent - startOffsetPixelY;
 
   const { startY } = getScrollBounds();
@@ -2305,8 +2631,8 @@ function buildBroadcastWindowHTML() {
   #bPrompterScrollTrack { position: absolute; top: 0; left: 0; width: 100%; will-change: transform; }
   #bPrompterContent { width: 100%; white-space: pre-wrap; word-break: break-word; }
   #bPrompterContent div, #bPrompterContent p { text-align: inherit; }
-  .empty-line-spacer { display: block; width: 100%; pointer-events: none; }
-  /* 송출창에서도 큐 마커는 가로 폭을 0px 차지하여 프리뷰와 줄바꿈이 100% 일치함 */
+  .empty-line-spacer { display: block; width: 100%; pointer-events: none; position: relative; }
+  .enter-vis-mark { display: inline-block; position: relative; width: 0; height: 0; overflow: visible; pointer-events: none; }
   .cue-marker {
     display: inline-block; position: relative; width: 0; height: 0;
     overflow: visible; vertical-align: baseline; pointer-events: none;
