@@ -1,48 +1,69 @@
-name: Build Windows and macOS Prompter
+name: Windows / Mac 프로그램 만들기
 
 on:
-  push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
-
+        include:
+          - os: windows-latest
+            name: windows-x64
+            command: npm run build:windows
+          - os: macos-latest
+            name: mac-arm64
+            command: npm run build:mac
     runs-on: ${{ matrix.os }}
-
     steps:
-      - name: Checkout code
+      - name: 소스 내려받기
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
+      - name: Node 준비 (Camera DateShift와 동일한 22)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Executable
-        run: npm run dist
+          node-version: '22'
+      - name: 의존성 설치
+        run: npm install --no-audit --no-fund
+      - name: 소스 및 빌드 설정 검사
+        run: npm test
+      - name: 앱 빌드
+        run: ${{ matrix.command }}
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Upload Windows EXE
-        if: matrix.os == 'windows-latest'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: macOS Ad-hoc 코드 서명 확인
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="dist/mac-arm64/StudioPrompterPro.app"
+          test -d "$APP" || { echo "::error::Mac app missing: $APP"; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign --display --verbose=2 "$APP" 2>&1 | tee dist/mac-signature.txt
+          grep -q 'Signature=adhoc' dist/mac-signature.txt || {
+            echo '::error::Expected ad-hoc signature not found'; exit 1;
+          }
+          echo 'Ad-hoc 서명 확인 완료. Apple 공증은 포함되지 않습니다.'
+      - name: 아티팩트 SHA-256 목록 생성 (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd dist
+          shasum -a 256 ./*.dmg ./*-mac-arm64.zip > SHA256SUMS.txt
+      - name: 결과 다운로드 파일 올리기
         uses: actions/upload-artifact@v4
         with:
-          name: StudioPrompter-Windows-EXE
-          path: dist/*.exe
-
-      - name: Upload macOS App (DMG & ZIP)
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: StudioPrompter-macOS-App
+          name: StudioPrompter-${{ matrix.name }}
           path: |
+            dist/*.exe
             dist/*.dmg
-            dist/*-mac.zip
+            dist/*.zip
+            dist/SHA256SUMS.txt
+            dist/mac-signature.txt
+          if-no-files-found: error
+          retention-days: 30
