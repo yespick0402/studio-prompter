@@ -1,34 +1,72 @@
 {
   "name": "studio-prompter-pro",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Studio Prompter PRO - desktop prompter for Windows and macOS",
   "main": "main.js",
   "author": "Studio Prompter",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --publish never"
+    "dist": "electron-builder --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never --config.forceCodeSigning=true"
   },
   "devDependencies": {
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron": "45.3.0",
+    "electron-builder": "26.18.0"
   },
   "build": {
     "appId": "com.studioprompter.pro",
     "productName": "StudioPrompterPro",
-    "files": ["main.js", "preload.js", "index.html", "icon.png", "icon.ico", "icon.icns", "package.json"],
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "icon.png",
+      "icon.ico",
+      "icon.icns",
+      "package.json"
+    ],
     "win": {
       "icon": "icon.ico",
-      "target": [ { "target": "portable", "arch": ["x64"] }, { "target": "zip", "arch": ["x64"] } ]
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
-    "portable": { "artifactName": "StudioPrompterPro-Portable.exe" },
+    "portable": {
+      "artifactName": "StudioPrompterPro-Portable.exe"
+    },
     "mac": {
       "icon": "icon.icns",
       "category": "public.app-category.video",
-      "identity": null,
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
-      ]
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "notarize": true
     }
   }
 }

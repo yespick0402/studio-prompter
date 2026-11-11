@@ -12,8 +12,18 @@ let exitDialogOpen = false;
 const filters = [{ name: '프롬프터 TXT 프로젝트', extensions: ['txt'] }];
 
 function createWindow() {
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(true));
-  session.defaultSession.setPermissionCheckHandler(() => true);
+  // 필요한 다중 모니터 조회 권한만 이 프로그램의 메인 편집창에 허용합니다.
+  // 마이크, 카메라, 위치, 화면 캡처 등 다른 모든 요청은 기본 거부합니다.
+  const allowWindowManagement = (contents, permission) => (
+    permission === 'window-management' &&
+    contents === mainWindow?.webContents
+  );
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
+    callback(allowWindowManagement(contents, permission));
+  });
+  session.defaultSession.setPermissionCheckHandler((contents, permission) => {
+    return allowWindowManagement(contents, permission);
+  });
 
   mainWindow = new BrowserWindow({
     width: 1540, height: 920, minWidth: 960, minHeight: 600,
