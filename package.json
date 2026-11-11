@@ -1,12 +1,12 @@
 {
   "name": "studio-prompter-pro",
-  "version": "1.1.0",
-  "description": "Professional Studio Prompter PRO",
+  "version": "1.2.0",
+  "description": "Studio Prompter PRO - desktop prompter for Windows and macOS",
   "main": "main.js",
   "author": "Studio Prompter",
   "scripts": {
     "start": "electron .",
-    "dist": "node generate-icon.js && electron-builder --publish never"
+    "dist": "electron-builder --publish never"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -15,41 +15,19 @@
   "build": {
     "appId": "com.studioprompter.pro",
     "productName": "StudioPrompterPro",
-    "files": [
-      "main.js",
-      "index.html",
-      "icon.png",
-      "package.json"
-    ],
+    "files": ["main.js", "preload.js", "index.html", "icon.png", "icon.ico", "icon.icns", "package.json"],
     "win": {
-      "icon": "icon.png",
-      "target": [
-        {
-          "target": "portable",
-          "arch": ["x64"]
-        },
-        {
-          "target": "zip",
-          "arch": ["x64"]
-        }
-      ]
+      "icon": "icon.ico",
+      "target": [ { "target": "portable", "arch": ["x64"] }, { "target": "zip", "arch": ["x64"] } ]
     },
-    "portable": {
-      "artifactName": "StudioPrompterPro-Portable.exe"
-    },
+    "portable": { "artifactName": "StudioPrompterPro-Portable.exe" },
     "mac": {
-      "icon": "icon.png",
+      "icon": "icon.icns",
       "category": "public.app-category.video",
       "identity": null,
       "target": [
-        {
-          "target": "dmg",
-          "arch": ["x64", "arm64"]
-        },
-        {
-          "target": "zip",
-          "arch": ["x64", "arm64"]
-        }
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
       ]
     }
   }
