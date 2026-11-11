@@ -1,14 +1,14 @@
 {
   "name": "studio-prompter-pro",
-  "version": "1.2.1",
+  "version": "1.2.3",
   "description": "Studio Prompter PRO - desktop prompter for Windows and macOS",
   "main": "main.js",
   "author": "Studio Prompter",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --publish never",
-    "dist:win": "electron-builder --win --publish never",
-    "dist:mac": "electron-builder --mac --publish never --config.forceCodeSigning=true"
+    "test": "node --test tests/build-config.test.cjs",
+    "build:mac": "electron-builder --mac --arm64 --publish never",
+    "build:windows": "electron-builder --win --x64 --publish never"
   },
   "devDependencies": {
     "electron": "45.3.0",
@@ -41,7 +41,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "artifactName": "StudioPrompterPro-${version}-win-x64.${ext}"
     },
     "portable": {
       "artifactName": "StudioPrompterPro-Portable.exe"
@@ -53,20 +54,23 @@
         {
           "target": "dmg",
           "arch": [
-            "x64",
             "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "x64",
             "arm64"
           ]
         }
       ],
-      "hardenedRuntime": true,
-      "notarize": true
+      "identity": "-",
+      "hardenedRuntime": false,
+      "notarize": false,
+      "artifactName": "StudioPrompterPro-${version}-mac-arm64.${ext}"
+    },
+    "directories": {
+      "output": "dist"
     }
   }
 }
