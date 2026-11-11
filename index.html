@@ -189,6 +189,21 @@
     box-shadow: 0 14px 36px rgba(0,0,0,0.85); display: none;
   }
   #findReplacePopup.open { display: block; }
+  #frDragHandle { cursor: move; touch-action: none; }
+  #frDragHandle:active { cursor: grabbing; }
+  #toastArea { position: fixed; z-index: 3500; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: min(90vw, 440px); }
+  #toastArea.pos-top-left { left: 18px; top: 18px; align-items: flex-start; }
+  #toastArea.pos-top-center { left: 50%; top: 18px; transform: translateX(-50%); align-items: center; }
+  #toastArea.pos-top-right { right: 18px; top: 18px; align-items: flex-end; }
+  #toastArea.pos-bottom-left { left: 18px; bottom: 18px; align-items: flex-start; }
+  #toastArea.pos-bottom-center { left: 50%; bottom: 18px; transform: translateX(-50%); align-items: center; }
+  #toastArea.pos-bottom-right { right: 18px; bottom: 18px; align-items: flex-end; }
+  .prompter-toast { background: #272d40; color: #fff; border: 1px solid #7aa2f7; box-shadow: 0 9px 28px #000a; border-radius: 9px; padding: 12px 16px; font-size: 13px; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
+  .prompter-toast.error { border-color: #f7768e; }
+  .prompter-toast.success { border-color: #9ece6a; }
+  #frFindInput { min-width: 0; }
+  ::highlight(prompter-current-find) { background: #ffd54a; color: #121212; }
+
   .fr-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
   .fr-row label { width: 62px; font-size: 12px; font-weight: 700; color: var(--text-muted); flex-shrink: 0; }
   .fr-row input { flex: 1; padding: 6px 10px; font-size: 13px; background: #11131f; }
@@ -197,13 +212,15 @@
 </head>
 <body>
 
+  <div id="toastArea" class="pos-bottom-right" aria-live="polite" aria-atomic="false"></div>
+
   <!-- 숨겨진 TXT 파일 불러오기 입력기 -->
   <input type="file" id="projectFileInput" accept=".txt,text/plain" style="display:none;" onchange="handleProjectFileLoad(event)">
 
   <!-- 찾기 및 바꾸기 팝업창 (Ctrl+F / Cmd+F) -->
   <div id="findReplacePopup">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border);">
-      <span style="font-weight:800; font-size:13.5px; color:#fff;">🔍 찾기 및 바꾸기 (Ctrl+F / ⌘+F)</span>
+    <div id="frDragHandle" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border);">
+      <span style="font-weight:800; font-size:13.5px; color:#fff;">⠿ 🔍 찾기 및 바꾸기 (Ctrl+F / ⌘+F)</span>
       <button onclick="closeFindReplace()" style="padding:2px 7px;">✕</button>
     </div>
     <div class="fr-row">
@@ -220,7 +237,7 @@
     </div>
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <span id="frStatusText" class="fr-status"></span>
-      <span style="font-size:10.5px; color:var(--text-muted);">ESC를 누르면 닫힙니다</span>
+      <span style="font-size:10.5px; color:var(--text-muted);">엔터: 다음 / Shift+엔터: 이전 · 상단바 드래그로 이동</span>
     </div>
   </div>
 
@@ -255,6 +272,7 @@
       </button>
       <button onclick="openModal('hotkeyModal')">⌨️ 단축키</button>
       <button onclick="resetAllSettings()" title="설정 초기화">🔄 초기화</button>
+      <button onclick="requestExit()" title="프로그램 종료 (변경사항 있으면 저장 여부 확인)">✕ 종료</button>
     </div>
   </header>
 
@@ -265,6 +283,7 @@
         <button class="tab-btn" onclick="switchTab('tabLayout', this)">📐 여백 / 시작·끝위치 / 비율</button>
         <button class="tab-btn" onclick="switchTab('tabLead', this)">🎯 리드선(투명도) / 반전 / 마커</button>
         <button class="tab-btn" onclick="switchTab('tabScroll', this)">⚡ 스크롤 / 마우스 / 줄이동</button>
+        <button class="tab-btn" onclick="switchTab('tabNotice', this)">🔔 저장 알림</button>
       </div>
 
       <!-- 탭 1 -->
@@ -519,6 +538,26 @@
         </div>
       </div>
 
+      <div id="tabNotice" class="tab-content">
+        <div class="control-grid">
+          <div class="control-item">
+            <label for="toastPositionSelect">저장·불러오기 알림 위치</label>
+            <select id="toastPositionSelect" onchange="updateToastSettings('toastPosition', this.value)">
+              <option value="top-left">왼쪽 위</option><option value="top-center">가운데 위</option><option value="top-right">오른쪽 위</option>
+              <option value="bottom-left">왼쪽 아래</option><option value="bottom-center">가운데 아래</option><option value="bottom-right">오른쪽 아래</option>
+            </select>
+          </div>
+          <div class="control-item">
+            <label for="toastDurationNum">알림 표시 시간 (0.5~15초)</label>
+            <div class="control-row">
+              <input type="range" id="toastDurationRange" min="0.5" max="15" step="0.5" value="3" oninput="updateToastSettings('toastDurationSec', this.value)">
+              <input type="number" id="toastDurationNum" min="0.5" max="15" step="0.5" value="3" onchange="updateToastSettings('toastDurationSec', this.value)">
+              <button onclick="showToast('알림 위치 및 표시 시간 미리 보기', 'success')">미리보기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="editor-toolbar">
         <div style="display:flex; align-items:center; gap:8px;">
           <span id="formatScopeBadge" class="mode-indicator mode-global">🌐 전체 서식 적용 모드 (본문 드래그 시 부분 적용)</span>
@@ -733,6 +772,8 @@ const defaultConfig = {
   allowMouseControlWhilePlaying: false,
   pastePlainText: true,
   leftPaneWidthPct: 50,
+  toastPosition: 'bottom-right',
+  toastDurationSec: 3,
   viewMode: 'split',
   hotkeys: {
     playPause: 'Space',
@@ -785,6 +826,13 @@ let isDraggingPreviewStage = false;
 // 찾기 및 바꾸기 상태 변수
 let currentFindIndex = -1;
 let lastFindQuery = '';
+let currentProjectPath = null;
+let browserFileHandle = null;
+let lastSavedSignature = null;
+let isProjectDirty = false;
+let editorHistory = { html: '', operations: [], index: 0, bytes: 0, selection: null };
+let historyReady = false;
+let suspendHistory = false;
 
 window.addEventListener('DOMContentLoaded', () => {
   loadStateFromStorage();
@@ -796,9 +844,15 @@ window.addEventListener('DOMContentLoaded', () => {
   initResizer();
   initYoutubeTimelineBar();
   initPreviewMouseWheelAndDrag();
+  initFindPopupDrag();
+  initUnsavedCloseProtection();
   renderPrompterDOM();
   resetToTop(false);
   setViewMode(config.viewMode || 'split', false);
+  resetEditorHistory();
+  // 구버전 로컬 자동 저장은 디스크의 마지막 실제 저장 상태를 보증하지 않으므로
+  // 이번 실행에서 불러온 상태를 비교 기준으로 삼고 이후 변경사항만 감지합니다.
+  markProjectAsSaved();
 
   if ('getScreenDetails' in window) {
     window.getScreenDetails().then(details => {
@@ -954,115 +1008,143 @@ function hasMeaningfulPartialFormatting(cloneRoot) {
   return false;
 }
 
-function saveProjectToTxt() {
+function makeProjectText() {
   normalizeEditorDOMStructure();
   const editor = document.getElementById('scriptEditor');
   const clone = editor.cloneNode(true);
   clone.querySelectorAll('.active-selection-lock').forEach(el => el.classList.remove('active-selection-lock'));
-
   const plainScript = extractCleanPlainTextFromDOM(clone);
-
-  // 한 줄짜리 초소형 메타데이터 생성 (진짜 부분 서식이 있을 때만 최소한으로 포함)
   const metaObj = { c: config };
   if (hasMeaningfulPartialFormatting(clone)) {
     metaObj.h = clone.innerHTML;
     metaObj.p = plainScript;
   }
-
-  // 줄바꿈 없이 단 1줄(JSON.stringify(metaObj))로만 하단에 깔끔하게 부착
-  const fullTxtContent = plainScript + COMPACT_META_HEADER + JSON.stringify(metaObj);
-  const blob = new Blob([fullTxtContent], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `프롬프터_대본_${dateStr}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  return plainScript + COMPACT_META_HEADER + JSON.stringify(metaObj);
 }
 
-function triggerLoadTxt() {
+function suggestProjectFilename() {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+  return `프롬프터_대본_${dateStr}.txt`;
+}
+
+async function saveProjectToTxt(fromClose = false) {
+  const content = makeProjectText();
+  const filename = suggestProjectFilename();
+  try {
+    if (window.prompterAPI?.saveProject) {
+      const result = await window.prompterAPI.saveProject({ content, currentPath: currentProjectPath, suggestedName: filename });
+      if (!result?.ok) return false;
+      currentProjectPath = result.path;
+      markProjectAsSaved();
+      showToast(`저장 완료: ${result.path.split(/[\/]/).pop()}`, 'success');
+      return true;
+    }
+    if (window.showSaveFilePicker) {
+      if (!browserFileHandle) {
+        browserFileHandle = await window.showSaveFilePicker({ suggestedName: filename, types: [{ description: '프롬프터 대본', accept: { 'text/plain': ['.txt'] } }] });
+      }
+      const writable = await browserFileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      currentProjectPath = browserFileHandle.name;
+      markProjectAsSaved();
+      showToast(`저장 완료: ${browserFileHandle.name}`, 'success');
+      return true;
+    }
+    // 순수 HTML의 일반 다운로드는 디스크 쓰기 성공을 확인할 수 없습니다.
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showToast('TXT 다운로드를 요청했습니다. 브라우저에서 실제 저장 여부를 확인해 주세요.', 'success');
+    return !fromClose ? false : false;
+  } catch (err) {
+    if (err?.name !== 'AbortError') showToast(`저장 실패: ${err?.message || err}`, 'error');
+    return false;
+  }
+}
+
+async function triggerLoadTxt() {
+  if (!await confirmReplaceProjectIfDirty()) return;
+  if (window.prompterAPI?.openProject) {
+    try {
+      const result = await window.prompterAPI.openProject();
+      if (result?.ok) await loadProjectFromText(result.content, result.path);
+      return;
+    } catch (err) { showToast(`불러오기 실패: ${err.message}`, 'error'); return; }
+  }
+  if (window.showOpenFilePicker) {
+    try {
+      const handles = await window.showOpenFilePicker({ multiple: false, types: [{ description: 'TXT 대본', accept: { 'text/plain': ['.txt'] } }] });
+      if (!handles?.length) return;
+      const file = await handles[0].getFile();
+      const content = await file.text();
+      browserFileHandle = handles[0];
+      await loadProjectFromText(content, file.name);
+      return;
+    } catch (err) { if (err?.name !== 'AbortError') showToast(`불러오기 실패: ${err?.message || err}`, 'error'); return; }
+  }
   const fileInput = document.getElementById('projectFileInput');
   fileInput.value = '';
   fileInput.click();
 }
 
-function handleProjectFileLoad(event) {
+async function handleProjectFileLoad(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  try { await loadProjectFromText(await file.text(), file.name); }
+  catch (err) { showToast(`불러오기 실패: ${err.message}`, 'error'); }
+}
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const content = String(e.target.result || '');
+async function loadProjectFromText(content, pathOrName = '') {
+  suspendHistory = true;
+  try {
     clearLockedPartialSelection();
-
-    // 1) 신규 1줄 슬림 포맷 확인
     const compactIdx = content.indexOf(COMPACT_META_HEADER);
+    const legacyIdx = content.indexOf(LEGACY_META_DELIMITER);
     if (compactIdx !== -1) {
       const plainPart = content.slice(0, compactIdx).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const jsonPart = content.slice(compactIdx + COMPACT_META_HEADER.length).trim();
-      try {
-        const parsed = JSON.parse(jsonPart);
-        const loadedCfg = parsed.c || parsed.config;
-        if (loadedCfg) {
-          config = Object.assign({}, defaultConfig, loadedCfg);
-          config.hotkeys = Object.assign({}, defaultConfig.hotkeys, loadedCfg.hotkeys || {});
-        }
-        // 사용자가 메모장에서 상단 대본(plainPart)을 직접 수정했다면 수정한 텍스트를 최우선으로 반영!
-        if (parsed.h && parsed.p === plainPart) {
-          savedScriptHTML = parsed.h;
-        } else {
-          savedScriptHTML = convertPlainTextToCleanHTML(plainPart);
-        }
-        initUIValues();
-        normalizeEditorDOMStructure();
-        setViewMode(config.viewMode || 'split', false);
-        renderPrompterDOM();
-        resetToTop(false);
-        updatePreviewScale();
-        saveStateToStorage();
-        return;
-      } catch (err) {}
-    }
-
-    // 2) 구버전 프로젝트 포맷 호환 확인
-    const legacyIdx = content.indexOf(LEGACY_META_DELIMITER);
-    if (legacyIdx !== -1) {
+      const parsed = JSON.parse(jsonPart);
+      const loadedCfg = parsed.c || parsed.config;
+      if (loadedCfg) {
+        config = Object.assign({}, defaultConfig, loadedCfg);
+        config.hotkeys = Object.assign({}, defaultConfig.hotkeys, loadedCfg.hotkeys || {});
+      }
+      savedScriptHTML = parsed.h && parsed.p === plainPart ? parsed.h : convertPlainTextToCleanHTML(plainPart);
+    } else if (legacyIdx !== -1) {
       const plainPart = content.slice(0, legacyIdx).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      const jsonPart = content.slice(legacyIdx + LEGACY_META_DELIMITER.length).trim();
-      try {
-        const parsed = JSON.parse(jsonPart);
-        if (parsed.config) {
-          config = Object.assign({}, defaultConfig, parsed.config);
-          config.hotkeys = Object.assign({}, defaultConfig.hotkeys, parsed.config.hotkeys || {});
-        }
-        savedScriptHTML = convertPlainTextToCleanHTML(plainPart);
-        initUIValues();
-        normalizeEditorDOMStructure();
-        setViewMode(config.viewMode || 'split', false);
-        renderPrompterDOM();
-        resetToTop(false);
-        updatePreviewScale();
-        saveStateToStorage();
-        return;
-      } catch (err) {}
+      const parsed = JSON.parse(content.slice(legacyIdx + LEGACY_META_DELIMITER.length).trim());
+      if (parsed.config) {
+        config = Object.assign({}, defaultConfig, parsed.config);
+        config.hotkeys = Object.assign({}, defaultConfig.hotkeys, parsed.config.hotkeys || {});
+      }
+      savedScriptHTML = convertPlainTextToCleanHTML(plainPart);
+    } else {
+      savedScriptHTML = convertPlainTextToCleanHTML(content);
     }
-
-    // 3) 일반 텍스트(.txt) 파일인 경우 -> 기존 설정(폰트, 두께, 글자크기, 줄간격 등)을 그대로 유지하며 대본만 불러와 적용!
-    savedScriptHTML = convertPlainTextToCleanHTML(content);
-    const editor = document.getElementById('scriptEditor');
-    editor.innerHTML = savedScriptHTML;
+    initUIValues();
     normalizeEditorDOMStructure();
+    setViewMode(config.viewMode || 'split', false);
     renderPrompterDOM();
     resetToTop(false);
+    updatePreviewScale();
+    currentProjectPath = pathOrName || null;
     saveStateToStorage();
-  };
-  reader.readAsText(file, 'utf-8');
+    resetEditorHistory();
+    markProjectAsSaved();
+    showToast(`불러오기 완료: ${String(pathOrName || 'TXT 대본').split(/[\/]/).pop()}`, 'success');
+    return true;
+  } catch (err) {
+    showToast(`프로젝트 형식 오류: ${err.message}`, 'error');
+    return false;
+  } finally { suspendHistory = false; }
 }
 
 /* ==========================================================================
@@ -1071,19 +1153,15 @@ function handleProjectFileLoad(event) {
 function openFindReplace() {
   const popup = document.getElementById('findReplacePopup');
   popup.classList.add('open');
+  clampFindPopupPosition();
   const findInput = document.getElementById('frFindInput');
-
-  // 만약 에디터에 드래그 선택된 단어가 있으면 자동으로 찾을 내용에 입력
   const sel = window.getSelection();
   const editor = document.getElementById('scriptEditor');
   if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode) && !sel.isCollapsed) {
     const selectedText = sel.toString().trim();
-    if (selectedText && !selectedText.includes('\n')) {
-      findInput.value = selectedText;
-    }
+    if (selectedText && selectedText.length < 200) findInput.value = selectedText;
   }
-
-  findInput.focus();
+  findInput.focus({ preventScroll: true });
   findInput.select();
   updateFindCount();
 }
@@ -1091,6 +1169,7 @@ function openFindReplace() {
 function closeFindReplace() {
   document.getElementById('findReplacePopup').classList.remove('open');
   document.getElementById('frStatusText').textContent = '';
+  if (window.CSS?.highlights) CSS.highlights.delete('prompter-current-find');
 }
 
 function handleFindInputKey(e) {
@@ -1099,86 +1178,100 @@ function handleFindInputKey(e) {
     e.preventDefault();
     findNextMatch(e.shiftKey ? -1 : 1);
   } else if (e.key === 'Escape') {
-    e.preventDefault();
-    closeFindReplace();
+    e.preventDefault(); closeFindReplace();
   }
 }
 
 function handleReplaceInputKey(e) {
   e.stopPropagation();
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    replaceCurrentMatch();
-  } else if (e.key === 'Escape') {
-    e.preventDefault();
-    closeFindReplace();
-  }
+  if (e.key === 'Enter') { e.preventDefault(); replaceCurrentMatch(); }
+  else if (e.key === 'Escape') { e.preventDefault(); closeFindReplace(); }
 }
 
-// 에디터 내 모든 텍스트 노드를 순회하며 검색어 위치 목록 반환
-function getEditorTextMatches(query) {
-  if (!query) return [];
-  const editor = document.getElementById('scriptEditor');
-  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
-  const matches = [];
+function normalizeSearchText(value) {
+  // 사용자가 줄바꿈/띄어쓰기 위치를 다르게 입력해도 동일한 문장으로 검색
+  return String(value || '').replace(/[\s\u200B-\u200D\uFEFF\u00A0]/gu, '');
+}
 
+function getEditorTextMatches(query) {
+  const needle = normalizeSearchText(query);
+  if (!needle) return [];
+  const editor = document.getElementById('scriptEditor');
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+  const map = [];
+  const flat = [];
   while (walker.nextNode()) {
     const node = walker.currentNode;
-    const text = node.nodeValue || '';
-    let startIndex = 0;
-    while (startIndex < text.length) {
-      const idx = text.indexOf(query, startIndex);
-      if (idx === -1) break;
-      matches.push({ node, start: idx, end: idx + query.length });
-      startIndex = idx + Math.max(1, query.length);
+    const value = node.nodeValue || '';
+    for (let i = 0; i < value.length; i++) {
+      if (/[\s\u200B-\u200D\uFEFF\u00A0]/u.test(value[i])) continue;
+      flat.push(value[i]);
+      map.push({ node, offset: i });
     }
+  }
+  const haystack = flat.join('');
+  const matches = [];
+  let from = 0;
+  while (from <= haystack.length - needle.length) {
+    const idx = haystack.indexOf(needle, from);
+    if (idx === -1) break;
+    const start = map[idx];
+    const end = map[idx + needle.length - 1];
+    matches.push({ startNode: start.node, startOffset: start.offset, endNode: end.node, endOffset: end.offset + 1 });
+    from = idx + needle.length;
   }
   return matches;
 }
 
+function getFindRange(match) {
+  const range = document.createRange();
+  range.setStart(match.startNode, match.startOffset);
+  range.setEnd(match.endNode, match.endOffset);
+  return range;
+}
+
 function updateFindCount() {
   const query = document.getElementById('frFindInput').value;
-  const statusEl = document.getElementById('frStatusText');
-  if (!query) {
-    statusEl.textContent = '';
+  const status = document.getElementById('frStatusText');
+  if (!normalizeSearchText(query)) {
     currentFindIndex = -1;
     lastFindQuery = '';
+    status.textContent = '';
+    if (window.CSS?.highlights) CSS.highlights.delete('prompter-current-find');
     return;
   }
   const matches = getEditorTextMatches(query);
-  if (matches.length === 0) {
-    statusEl.textContent = '일치하는 내용이 없습니다 (0개)';
-    statusEl.style.color = 'var(--danger)';
-    currentFindIndex = -1;
-  } else {
-    statusEl.textContent = `총 ${matches.length}개 찾음`;
-    statusEl.style.color = 'var(--accent-bright)';
-  }
+  currentFindIndex = -1;
+  lastFindQuery = '';
+  status.textContent = matches.length ? `총 ${matches.length}개 찾음 (공백·줄바꿈 무시)` : '일치하는 내용이 없습니다 (0개)';
+  status.style.color = matches.length ? 'var(--accent-bright)' : 'var(--danger)';
+  if (window.CSS?.highlights) CSS.highlights.delete('prompter-current-find');
 }
 
-function selectMatchInEditor(matchObj, matchIdx, totalCount) {
+function focusFindInputAfterNavigation() {
+  // Range 선택 후 브라우저가 편집창으로 초점을 이동하는 문제 차단
+  const input = document.getElementById('frFindInput');
+  input.focus({ preventScroll: true });
+  queueMicrotask(() => { if (document.getElementById('findReplacePopup').classList.contains('open')) input.focus({ preventScroll: true }); });
+}
+
+function selectMatchInEditor(match, matchIdx, totalCount) {
   const editor = document.getElementById('scriptEditor');
-  const range = document.createRange();
-  range.setStart(matchObj.node, matchObj.start);
-  range.setEnd(matchObj.node, matchObj.end);
-
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
-
-  // 찾은 위치가 에디터 화면 중앙에 오도록 스크롤
+  const range = getFindRange(match);
+  if (window.CSS?.highlights && typeof Highlight !== 'undefined') {
+    CSS.highlights.set('prompter-current-find', new Highlight(range.cloneRange()));
+  }
+  // 검색 결과를 찾아가되 실제 타이핑 커서는 검색 입력칸에 계속 둡니다.
   const rect = range.getBoundingClientRect();
   const editorRect = editor.getBoundingClientRect();
   if (rect.top < editorRect.top + 30 || rect.bottom > editorRect.bottom - 30) {
-    editor.scrollTop += (rect.top - editorRect.top) - (editor.clientHeight / 2);
+    editor.scrollTop += (rect.top - editorRect.top) - editor.clientHeight / 2;
   }
-
-  // 프리뷰 화면도 찾은 단어 위치로 함께 이동
   syncPreviewToRange(range);
-
   const statusEl = document.getElementById('frStatusText');
-  statusEl.textContent = `${matchIdx + 1} / ${totalCount}번째 항목`;
+  statusEl.textContent = `${matchIdx + 1} / ${totalCount}번째 항목 (Enter: 다음)`;
   statusEl.style.color = 'var(--success)';
+  focusFindInputAfterNavigation();
 }
 
 function syncPreviewToRange(range) {
@@ -1188,7 +1281,6 @@ function syncPreviewToRange(range) {
   const offsetInEditor = (rect.top - editorRect.top) + editor.scrollTop;
   const totalEditorHeight = Math.max(1, editor.scrollHeight - 36);
   const ratio = Math.max(0, Math.min(1, (offsetInEditor - 18) / totalEditorHeight));
-
   const { startY, endY } = getScrollBounds();
   currentScrollY = startY + (endY - startY) * ratio;
   currentVelocity = 0;
@@ -1197,94 +1289,122 @@ function syncPreviewToRange(range) {
 
 function findNextMatch(step = 1) {
   const query = document.getElementById('frFindInput').value;
-  if (!query) return;
-
+  if (!normalizeSearchText(query)) return;
   const matches = getEditorTextMatches(query);
   const statusEl = document.getElementById('frStatusText');
-  if (matches.length === 0) {
+  if (!matches.length) {
     statusEl.textContent = '일치하는 내용이 없습니다 (0개)';
     statusEl.style.color = 'var(--danger)';
     currentFindIndex = -1;
+    focusFindInputAfterNavigation();
     return;
   }
-
   if (query !== lastFindQuery || currentFindIndex < 0) {
     currentFindIndex = step > 0 ? 0 : matches.length - 1;
     lastFindQuery = query;
   } else {
     currentFindIndex = (currentFindIndex + step + matches.length) % matches.length;
   }
-
   selectMatchInEditor(matches[currentFindIndex], currentFindIndex, matches.length);
 }
 
-// [바꾸기] (1개 바꾸기)
+function replaceRangeWithText(match, replacement) {
+  const range = getFindRange(match);
+  range.deleteContents();
+  range.insertNode(document.createTextNode(replacement));
+}
+
 function replaceCurrentMatch() {
   const query = document.getElementById('frFindInput').value;
   const replacement = document.getElementById('frReplaceInput').value;
-  if (!query) return;
-
+  if (!normalizeSearchText(query)) return;
   let matches = getEditorTextMatches(query);
-  if (matches.length === 0) {
-    updateFindCount();
-    return;
-  }
-
+  if (!matches.length) { updateFindCount(); return; }
   if (currentFindIndex < 0 || currentFindIndex >= matches.length || lastFindQuery !== query) {
     currentFindIndex = 0;
     lastFindQuery = query;
     selectMatchInEditor(matches[0], 0, matches.length);
     return;
   }
-
-  const target = matches[currentFindIndex];
-  const nodeText = target.node.nodeValue || '';
-  target.node.nodeValue = nodeText.slice(0, target.start) + replacement + nodeText.slice(target.end);
-
+  replaceRangeWithText(matches[currentFindIndex], replacement);
   renderPrompterDOM();
   saveStateToStorage();
-
-  // 바꾼 뒤 다음 일치 항목 자동 선택
   matches = getEditorTextMatches(query);
-  const statusEl = document.getElementById('frStatusText');
-  if (matches.length === 0) {
-    statusEl.textContent = '모두 변경 완료 (남은 항목 0개)';
-    statusEl.style.color = 'var(--warning)';
+  if (!matches.length) {
+    const statusEl = document.getElementById('frStatusText');
+    statusEl.textContent = '바꾸기 완료 (남은 항목 0개)';
+    statusEl.style.color = 'var(--success)';
     currentFindIndex = -1;
+    focusFindInputAfterNavigation();
   } else {
     if (currentFindIndex >= matches.length) currentFindIndex = 0;
     selectMatchInEditor(matches[currentFindIndex], currentFindIndex, matches.length);
   }
 }
 
-// [모두 바꾸기] (대본 전체 일괄 바꾸기)
 function replaceAllMatches() {
   const query = document.getElementById('frFindInput').value;
   const replacement = document.getElementById('frReplaceInput').value;
-  if (!query) return;
-
+  if (!normalizeSearchText(query)) return;
   const matches = getEditorTextMatches(query);
   const statusEl = document.getElementById('frStatusText');
-  if (matches.length === 0) {
+  if (!matches.length) {
     statusEl.textContent = '바꿀 대상이 없습니다 (0개)';
-    statusEl.style.color = 'var(--danger)';
-    return;
+    statusEl.style.color = 'var(--danger)'; return;
   }
-
-  const totalReplaced = matches.length;
-  // 뒤쪽 인덱스부터 역순으로 치환하여 앞쪽 텍스트 노드의 오프셋이 밀리지 않도록 안전하게 일괄 변경
+  let count = 0;
   for (let i = matches.length - 1; i >= 0; i--) {
-    const m = matches[i];
-    const txt = m.node.nodeValue || '';
-    m.node.nodeValue = txt.slice(0, m.start) + replacement + txt.slice(m.end);
+    try { replaceRangeWithText(matches[i], replacement); count++; }
+    catch (err) { console.warn('범위 치환 재계산 필요', err); break; }
   }
-
   currentFindIndex = -1;
   renderPrompterDOM();
   saveStateToStorage();
-
-  statusEl.textContent = `총 ${totalReplaced}개 항목을 모두 바꿨습니다!`;
+  statusEl.textContent = `총 ${count}개 항목을 모두 바꿨습니다!`;
   statusEl.style.color = 'var(--success)';
+  focusFindInputAfterNavigation();
+}
+
+function clampFindPopupPosition() {
+  const popup = document.getElementById('findReplacePopup');
+  const maxLeft = Math.max(0, innerWidth - popup.offsetWidth);
+  const maxTop = Math.max(0, innerHeight - popup.offsetHeight);
+  const storedX = localStorage.getItem('PROMPTER_FIND_X');
+  const storedY = localStorage.getItem('PROMPTER_FIND_Y');
+  const x = storedX !== null ? Number(storedX) : 24;
+  const y = storedY !== null ? Number(storedY) : 68;
+  const left = Number.isFinite(x) ? x : 24;
+  const top = Number.isFinite(y) ? y : 68;
+  popup.style.left = Math.max(0, Math.min(maxLeft, left)) + 'px';
+  popup.style.top = Math.max(0, Math.min(maxTop, top)) + 'px';
+}
+
+function initFindPopupDrag() {
+  const popup = document.getElementById('findReplacePopup');
+  const handle = document.getElementById('frDragHandle');
+  let dragging = false, originX = 0, originY = 0, initialX = 0, initialY = 0;
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    e.preventDefault(); dragging = true;
+    originX = e.clientX; originY = e.clientY;
+    initialX = popup.offsetLeft; initialY = popup.offsetTop;
+    handle.setPointerCapture(e.pointerId);
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const x = Math.max(0, Math.min(innerWidth - popup.offsetWidth, initialX + e.clientX - originX));
+    const y = Math.max(0, Math.min(innerHeight - popup.offsetHeight, initialY + e.clientY - originY));
+    popup.style.left = x + 'px'; popup.style.top = y + 'px';
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    localStorage.setItem('PROMPTER_FIND_X', String(popup.offsetLeft));
+    localStorage.setItem('PROMPTER_FIND_Y', String(popup.offsetTop));
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+  window.addEventListener('resize', () => { if (popup.classList.contains('open')) clampFindPopupPosition(); });
 }
 
 /* ==========================================================================
@@ -1374,11 +1494,13 @@ function loadStateFromStorage() {
 }
 
 function saveStateToStorage() {
+  if (historyReady && !suspendHistory) captureEditorHistory();
   try {
     const editor = document.getElementById('scriptEditor');
     const clone = editor.cloneNode(true);
     clone.querySelectorAll('.active-selection-lock').forEach(el => el.classList.remove('active-selection-lock'));
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ config: config, scriptHTML: clone.innerHTML }));
+    updateProjectDirtyState();
   } catch (e) {}
 }
 
@@ -1627,6 +1749,10 @@ function initUIValues() {
   updateSpeedInputUI();
   updatePasteModeUI();
   updateHotkeyLabels();
+  document.getElementById('toastPositionSelect').value = config.toastPosition || 'bottom-right';
+  document.getElementById('toastDurationRange').value = config.toastDurationSec ?? 3;
+  document.getElementById('toastDurationNum').value = config.toastDurationSec ?? 3;
+  document.getElementById('toastArea').className = `pos-${config.toastPosition || 'bottom-right'}`;
 }
 
 function updateEnterMarkToggleUI() {
@@ -2549,6 +2675,11 @@ function setControlZoneActive(active) {
 }
 
 function handleGlobalKeyDown(e, fromBroadcastWin = false) {
+  if (!fromBroadcastWin && (e.ctrlKey || e.metaKey) && !e.altKey) {
+    const key = e.key.toLowerCase();
+    if (key === 's') { e.preventDefault(); e.stopPropagation(); void saveProjectToTxt(); return; }
+    if (key === 'o') { e.preventDefault(); e.stopPropagation(); void triggerLoadTxt(); return; }
+  }
   // 찾기 및 바꾸기 단축키: 윈도우 Ctrl+F / 맥 Command(Meta)+F
   if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
     e.preventDefault();
@@ -2626,6 +2757,15 @@ function handleGlobalKeyDown(e, fromBroadcastWin = false) {
   else if (keyName === config.hotkeys.resetTop) { e.preventDefault(); resetToTop(); }
 }
 
+window.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const key = e.key.toLowerCase();
+  if (key === 'z' || key === 'y') {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (key === 'y' || (key === 'z' && e.shiftKey)) redoEditorChange();
+    else undoEditorChange();
+  }
+}, true);
 window.addEventListener('keydown', (e) => handleGlobalKeyDown(e, false));
 
 const hotkeyDescriptions = {
@@ -3114,6 +3254,200 @@ function openModal(id) {
 function closeModal(id) {
   capturingHotkeyAction = null;
   document.getElementById(id).classList.remove('open');
+}
+/* ==========================================================================
+   16. 대본 전용 고용량 Undo/Redo, 저장 비교, 알림, 종료 보호
+   ========================================================================== */
+function cleanEditorHTML() {
+  const editor = document.getElementById('scriptEditor');
+  const clone = editor.cloneNode(true);
+  clone.querySelectorAll('.active-selection-lock').forEach(el => el.classList.remove('active-selection-lock'));
+  return clone.innerHTML;
+}
+
+function captureEditorSelection() {
+  const editor = document.getElementById('scriptEditor');
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) return null;
+  const encode = (node, offset) => {
+    const path = [];
+    while (node && node !== editor) {
+      const parent = node.parentNode;
+      if (!parent) return null;
+      path.unshift(Array.prototype.indexOf.call(parent.childNodes, node));
+      node = parent;
+    }
+    return { path, offset };
+  };
+  return { start: encode(selection.anchorNode, selection.anchorOffset), end: encode(selection.focusNode, selection.focusOffset) };
+}
+
+function restoreEditorSelection(state) {
+  if (!state?.start || !state?.end) return;
+  const editor = document.getElementById('scriptEditor');
+  const decode = (loc) => {
+    let node = editor;
+    for (const index of loc.path) {
+      node = node.childNodes[index];
+      if (!node) return null;
+    }
+    const limit = node.nodeType === 3 ? node.length : node.childNodes.length;
+    return { node, offset: Math.min(loc.offset, limit) };
+  };
+  try {
+    const start = decode(state.start), end = decode(state.end);
+    if (!start || !end) return;
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    const selection = window.getSelection();
+    selection.removeAllRanges(); selection.addRange(range);
+  } catch (_err) {}
+}
+
+function resetEditorHistory() {
+  editorHistory = { html: cleanEditorHTML(), operations: [], index: 0, bytes: 0, selection: captureEditorSelection() };
+  historyReady = true;
+}
+
+function captureEditorHistory() {
+  if (!historyReady || suspendHistory) return;
+  const oldValue = editorHistory.html;
+  const newValue = cleanEditorHTML();
+  if (oldValue === newValue) { editorHistory.selection = captureEditorSelection() || editorHistory.selection; return; }
+  let prefix = 0;
+  const longest = Math.min(oldValue.length, newValue.length);
+  while (prefix < longest && oldValue[prefix] === newValue[prefix]) prefix++;
+  let suffix = 0;
+  while (suffix < longest - prefix && oldValue[oldValue.length - 1 - suffix] === newValue[newValue.length - 1 - suffix]) suffix++;
+  const removed = oldValue.slice(prefix, oldValue.length - suffix);
+  const inserted = newValue.slice(prefix, newValue.length - suffix);
+  const op = { index: prefix, removed, inserted, before: editorHistory.selection, after: captureEditorSelection() };
+  if (editorHistory.index < editorHistory.operations.length) {
+    editorHistory.operations.length = editorHistory.index;
+    editorHistory.bytes = editorHistory.operations.reduce((sum, item) => sum + item.removed.length + item.inserted.length, 0);
+  }
+  editorHistory.operations.push(op);
+  editorHistory.index++;
+  editorHistory.bytes += removed.length + inserted.length;
+  editorHistory.html = newValue;
+  editorHistory.selection = op.after;
+  // 편집 내용 전체를 매번 보관하지 않고 변경된 부분만 보관: 최대 10만 단계/256MiB.
+  while (editorHistory.operations.length > 100000 || editorHistory.bytes > 256 * 1024 * 1024) {
+    const old = editorHistory.operations.shift();
+    editorHistory.bytes -= old.removed.length + old.inserted.length;
+    editorHistory.index--;
+  }
+}
+
+function applyEditorHistoryStep(direction) {
+  captureEditorHistory();
+  const backward = direction === -1;
+  if (backward && editorHistory.index <= 0) return;
+  if (!backward && editorHistory.index >= editorHistory.operations.length) return;
+  const item = backward ? editorHistory.operations[editorHistory.index - 1] : editorHistory.operations[editorHistory.index];
+  const source = backward ? item.inserted : item.removed;
+  const target = backward ? item.removed : item.inserted;
+  const html = editorHistory.html;
+  if (html.slice(item.index, item.index + source.length) !== source) {
+    resetEditorHistory();
+    showToast('편집 기록이 바뀌어 되돌리기를 초기화했습니다.', 'error');
+    return;
+  }
+  suspendHistory = true;
+  try {
+    editorHistory.html = html.slice(0, item.index) + target + html.slice(item.index + source.length);
+    editorHistory.index += direction;
+    editorHistory.selection = backward ? item.before : item.after;
+    clearLockedPartialSelection();
+    const editor = document.getElementById('scriptEditor');
+    editor.innerHTML = editorHistory.html;
+    editor.focus({ preventScroll: true });
+    restoreEditorSelection(editorHistory.selection);
+    renderPrompterDOM();
+    syncPreviewToEditorCaret();
+    saveStateToStorage();
+  } finally { suspendHistory = false; }
+}
+function undoEditorChange() { applyEditorHistoryStep(-1); }
+function redoEditorChange() { applyEditorHistoryStep(1); }
+
+function getProjectSignature() {
+  return JSON.stringify({ h: cleanEditorHTML(), c: config });
+}
+function updateProjectDirtyState() {
+  if (lastSavedSignature === null) return;
+  const dirty = getProjectSignature() !== lastSavedSignature;
+  if (dirty === isProjectDirty) return;
+  isProjectDirty = dirty;
+  document.title = `프로페셔널 스튜디오 프롬프터 PRO${dirty ? ' ● 미저장' : ''}`;
+  window.prompterAPI?.setDirty?.(dirty);
+}
+// [저장하지 않음]을 선택하면 로컬 자동복구 데이터도 마지막 저장 상태로 되돌립니다.
+function discardUnsavedChangesForExit() {
+  if (!lastSavedSignature) return;
+  try {
+    const prior = JSON.parse(lastSavedSignature);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ config: prior.c, scriptHTML: prior.h }));
+  } catch (err) { console.warn('미저장 자동 복구 데이터 정리 실패', err); }
+}
+
+function markProjectAsSaved() {
+  lastSavedSignature = getProjectSignature();
+  isProjectDirty = false;
+  document.title = '프로페셔널 스튜디오 프롬프터 PRO';
+  window.prompterAPI?.setDirty?.(false);
+}
+
+function updateToastSettings(key, value) {
+  if (key === 'toastPosition') config.toastPosition = value;
+  if (key === 'toastDurationSec') config.toastDurationSec = Math.min(15, Math.max(0.5, Number(value) || 3));
+  document.getElementById('toastPositionSelect').value = config.toastPosition;
+  document.getElementById('toastDurationRange').value = config.toastDurationSec;
+  document.getElementById('toastDurationNum').value = config.toastDurationSec;
+  document.getElementById('toastArea').className = `pos-${config.toastPosition}`;
+  saveStateToStorage();
+}
+function showToast(message, type = '') {
+  const area = document.getElementById('toastArea');
+  const notification = document.createElement('div');
+  notification.className = `prompter-toast ${type}`;
+  notification.textContent = message;
+  area.appendChild(notification);
+  const duration = Math.min(15, Math.max(.5, Number(config.toastDurationSec) || 3)) * 1000;
+  setTimeout(() => notification.remove(), duration);
+}
+
+async function confirmReplaceProjectIfDirty() {
+  if (!isProjectDirty) return true;
+  if (window.prompterAPI?.confirmReplace) {
+    const choice = await window.prompterAPI.confirmReplace();
+    if (choice === 'cancel') return false;
+    if (choice === 'save') return await saveProjectToTxt();
+    return true;
+  }
+  // HTML 브라우저는 세 버튼의 기본 종료 대화상자를 제공하지 않음.
+  const saveFirst = window.confirm('저장되지 않은 변경사항이 있습니다.\n확인: 먼저 저장 / 취소: 불러오기 중단');
+  return saveFirst ? await saveProjectToTxt() : false;
+}
+function initUnsavedCloseProtection() {
+  window.addEventListener('beforeunload', (event) => {
+    if (window.prompterAPI || !isProjectDirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
+}
+async function requestExit() {
+  if (window.prompterAPI?.requestExit) {
+    window.prompterAPI.requestExit();
+    return;
+  }
+  if (isProjectDirty) {
+    showToast('브라우저에서 탭/창을 닫으면 미저장 변경 경고가 표시됩니다.', 'error');
+  } else {
+    window.close();
+    showToast('브라우저가 자동 닫기를 차단하면 직접 탭을 닫아 주세요.');
+  }
 }
 </script>
 </body>
