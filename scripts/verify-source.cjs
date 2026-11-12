@@ -1,6 +1,8 @@
 'use strict';
 /**
- * Release integrity verification: verifies complete known-good application and
+ * Release integrity verification: verifies known-good app and test sources across Windows/macOS.
+ * CRLF and LF are treated identically for text files.
+ * Verifies complete known-good application and
  * regression-test inputs were uploaded together. Not a security signature.
  * Regenerate manifest only when all release files are intentionally changed.
  */
@@ -38,12 +40,18 @@ for(const [file,expected] of Object.entries(manifest.files||{})) {
   const target=path.resolve(root,file);
   if(!target.startsWith(root+path.sep)) { mismatches.push([file,'검증 경로가 올바르지 않습니다']);continue; }
   if(!fs.existsSync(target)) {mismatches.push([file,'파일이 없습니다']);continue;}
-  const actual=sha256(fs.readFileSync(target));
-  if(actual!==expected) mismatches.push([file,`버전이 일치하지 않습니다. 현재 SHA-256 ${actual.slice(0,16)}..., 배포본 ${expected.slice(0,16)}...`]);
-  else note(`✅ ${file}`);
+  // Git can check out text files with CRLF on Windows and LF on macOS.
+  // Hash the original bytes first; only if they differ, retry with normalized
+  // line endings. A real content change must still be reported as a mismatch.
+  const raw=fs.readFileSync(target);
+  const actual=sha256(raw);
+  const normalized=sha256(Buffer.from(raw.toString('utf8').replace(/\r\n/g,'\n'),'utf8'));
+  if(actual===expected) note(`✅ ${file}`);
+  else if(normalized===expected) note(`✅ ${file} (Windows CRLF 줄바꿈 차이만 확인됨)`);
+  else mismatches.push([file,`파일 내용이 다릅니다. 현재 SHA-256 ${actual.slice(0,16)}..., 줄바꿈 정규화 ${normalized.slice(0,16)}..., 배포본 ${expected.slice(0,16)}...`]);
 }
 if(mismatches.length) {
-  failed(`\n❌ ${mismatches.length}개 파일이 이번 ZIP과 일치하지 않습니다.`);
+  failed(`\n❌ ${mismatches.length}개 파일의 내용이 이번 ZIP과 일치하지 않습니다 (CRLF/LF 차이는 무시했습니다).`);
   for(const [file,why] of mismatches) reportError(file,why);
   failed('해결: ZIP 압축을 풀고 StudioPrompterPro 폴더 **안**의 파일들을 GitHub 저장소 루트에 경로 그대로 다시 업로드 후 Commit하세요.');
   failed('특히 index.html, tests/*.test.cjs, scripts/*, package.json을 한 번에 업로드해야 합니다.');

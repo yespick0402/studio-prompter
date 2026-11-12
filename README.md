@@ -137,3 +137,17 @@
 5. `GitHub 업로드 파일 일치 검사`가 실패하면 로그에 틀린 파일의 이름이 나옵니다. `소스 및 빌드 설정 검사`가 실패하면 실행 결과의 `StudioPrompter-Diagnostics-...` 진단 파일을 내려받아 `test-results.txt`를 확인합니다.
 
 Windows 및 Mac 빌드 방식은 이전 Camera DateShift 방식 그대로입니다. 서명/공증 부재로 인한 Mac Gatekeeper 동작은 별개 문제입니다. Node 20 경고 제거를 위해 checkout/setup-node/upload-artifact를 v5로 갱신했습니다. Node 프로젝트 자체는 22로 유지합니다.
+
+
+## 1.2.6 Windows CI 줄바꿈 검증 수정
+
+기존 `scripts/verify-source.cjs`는 파일 바이트를 그대로 SHA-256으로 비교하여
+GitHub Actions Windows 체크아웃(CRLF)과 원본 ZIP(LF) 사이에 가짜 버전 불일치가 발생했습니다.
+
+- `scripts/verify-source.cjs`는 LF/CRLF 차이만 있는 경우 정상으로 판정하고, 실제 내용이 바뀌면 실패하도록 수정했습니다.
+- `.gitattributes`가 GitHub 체크아웃 시 텍스트 파일의 LF 형식을 고정합니다.
+- `scripts/release-files.json`과 프로그램 코드는 변경하지 않았습니다.
+- Windows와 Mac 모두 기존 GitHub Actions 빌드 명령을 유지합니다.
+
+**간단 업데이트:** GitHub 저장소의 `scripts/verify-source.cjs`를 교체하고,
+최상위에 `.gitattributes`를 업로드한 뒤 새 커밋으로 빌드하세요.
