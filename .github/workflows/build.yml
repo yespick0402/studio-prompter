@@ -23,15 +23,25 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: 소스 내려받기
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Node 준비 (Camera DateShift와 동일한 22)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
+      - name: GitHub 업로드 파일 일치 검사 (프리셋/설정)
+        run: npm run verify:sources
       - name: 의존성 설치
         run: npm install --no-audit --no-fund
       - name: 소스 및 빌드 설정 검사
-        run: npm test
+        run: npm run test:ci
+      - name: 실패 시 오류 진단 로그 첨부
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: StudioPrompter-Diagnostics-${{ matrix.name }}
+          path: diagnostics/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
       - name: 앱 빌드
         run: ${{ matrix.command }}
         env:
@@ -56,7 +66,7 @@ jobs:
           cd dist
           shasum -a 256 ./*.dmg ./*-mac-arm64.zip > SHA256SUMS.txt
       - name: 결과 다운로드 파일 올리기
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: StudioPrompter-${{ matrix.name }}
           path: |
