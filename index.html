@@ -22,6 +22,14 @@
     padding: 0 12px; flex-shrink: 0; gap: 6px; overflow-x: auto;
   }
   .top-bar .logo { font-weight: 800; font-size: 14px; color: #fff; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  /* 파일 이름·수정 상태: 창 제목과 상단에서 동일하게 표시 */
+  .project-file-label {
+    display: inline-block; flex: 0 1 auto; min-width: 85px; max-width: 270px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    padding: 4px 9px; border-radius: 6px; border: 1px solid var(--border);
+    background: #20263b; color: #c0caf5; font-weight: 700; font-size: 12px;
+  }
+  .project-file-label.is-dirty { border-color: var(--warning); color: var(--warning); }
   .status-badge { font-size: 11px; padding: 3px 8px; border-radius: 99px; background: var(--bg-input); color: var(--text-muted); font-weight: 700; }
   .status-badge.on-air { background: rgba(247, 118, 142, 0.2); color: var(--danger); border: 1px solid var(--danger); animation: pulse 1.5s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
@@ -180,6 +188,23 @@
   .hotkey-capture-btn { min-width: 130px; text-align: center; background: #131520; border: 1px solid var(--accent-bright); color: var(--accent-bright); }
   .hotkey-capture-btn.recording { background: var(--danger); color: #fff; border-color: #fff; }
   .helper-tip { font-size: 10.5px; color: var(--text-muted); }
+  /* v1.2.6: 프리셋, 단축키 및 공장초기화 통합 설정 팝업 */
+  .settings-modal-box { width: 660px; max-width: 96vw; max-height: 88vh; display: flex; flex-direction: column; }
+  .settings-modal-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .settings-modal-tabs button { flex: 1; padding: 9px 10px; }
+  .settings-modal-tabs button.active { background: var(--accent); border-color: var(--accent-bright); color: #fff; }
+  .settings-modal-content { display: none; overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 4px; }
+  .settings-modal-content.active { display: block; }
+  .preset-panel { padding: 12px; background: #171b2c; border: 1px solid var(--border); border-radius: 10px; }
+  .preset-title { color: #fff; font-weight: 800; font-size: 13px; margin-bottom: 8px; }
+  .preset-description { color: var(--text-muted); font-size: 11.5px; line-height: 1.65; margin: 7px 0 12px; }
+  .preset-actions { display: flex; flex-wrap: wrap; gap: 7px; margin: 9px 0; }
+  .preset-actions button { padding: 7px 10px; }
+  .preset-selector { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .preset-selector select { flex: 1 1 280px; padding: 8px; font-size: 13px; }
+  .preset-status { font-size: 12px; color: var(--warning); min-height: 16px; margin-top: 10px; }
+  .settings-danger-note { border: 1px solid var(--danger); border-radius: 9px; background: rgba(247,118,142,.06); padding: 14px; line-height: 1.7; font-size: 12px; }
+
 
   /* 찾기 및 바꾸기 전용 팝업창 (본문을 가리지 않는 상단 플로팅 팝업) */
   #findReplacePopup {
@@ -244,6 +269,7 @@
   <header class="top-bar">
     <div class="logo">
       <span>🎬 STUDIO PROMPTER</span>
+      <span id="projectFileLabel" class="project-file-label" role="status" aria-live="polite" title="새 파일">새 파일</span>
       <span id="onAirBadge" class="status-badge">OFF AIR</span>
     </div>
 
@@ -254,6 +280,7 @@
     </div>
 
     <div class="top-actions">
+      <button onclick="createNewProject()" title="기본 설정의 빈 새 대본을 만듭니다 (저장되지 않은 변경사항이 있으면 확인)">📄 새 파일</button>
       <button onclick="saveProjectToTxt()" title="대본 내용과 설정값을 깔끔한 .txt 파일로 저장합니다">💾 저장(.txt)</button>
       <button onclick="triggerLoadTxt()" title="저장한 프로젝트 .txt 또는 일반 .txt 파일을 불러옵니다">📂 불러오기(.txt)</button>
       <button id="btnSyncEditorToPreview" class="active-toggle" onclick="toggleConfigBool('syncEditorCaretToPreview', 'btnSyncEditorToPreview')" title="편집 중 현재 커서 위치를 우측 프리뷰 화면에 자동으로 맞춰 보여줍니다">
@@ -270,8 +297,7 @@
       <button id="btnCloseBroadcast" class="btn-danger" onclick="stopBroadcast()" style="display:none;">
         ⏹️ 송출 끄기 (<span id="lblKeyClose">Escape</span>)
       </button>
-      <button onclick="openModal('hotkeyModal')">⌨️ 단축키</button>
-      <button onclick="resetAllSettings()" title="설정 초기화">🔄 초기화</button>
+      <button onclick="openModal('settingsModal')" title="프리셋 · 단축키 · 설정 공장초기화">⚙️ 설정</button>
       <button onclick="requestExit()" title="프로그램 종료 (변경사항 있으면 저장 여부 확인)">✕ 종료</button>
     </div>
   </header>
@@ -703,26 +729,65 @@
     </div>
   </div>
 
-  <!-- 모달 2: 단축키 설정 -->
-  <div class="modal-backdrop" id="hotkeyModal">
-    <div class="modal-box">
+  <!-- 통합 설정: 프리셋 관리 / 단축키 / 설정 공장초기화 -->
+  <div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-label="프로그램 설정">
+    <div class="modal-box settings-modal-box">
       <div class="modal-header">
-        <span>⌨️ 컨트롤 단축키 설정</span>
-        <button onclick="closeModal('hotkeyModal')">✕</button>
+        <span>⚙️ 프로그램 설정</span>
+        <button onclick="closeModal('settingsModal')" title="설정 닫기">✕</button>
       </div>
-      <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
-        바꾸고 싶은 항목의 버튼을 클릭한 뒤 키보드의 원하는 키를 누르세요.
-      </p>
-      <div id="hotkeyListContainer"></div>
-      <div style="display:flex; justify-content:space-between; margin-top:16px;">
-        <button onclick="resetHotkeys()">기본 단축키로 복원</button>
-        <button class="btn-primary" onclick="closeModal('hotkeyModal')">닫기</button>
+      <div class="settings-modal-tabs">
+        <button id="settingsTabPresetBtn" class="active" onclick="switchSettingsTab('preset')">🎛️ 프리셋</button>
+        <button id="settingsTabHotkeyBtn" onclick="switchSettingsTab('hotkey')">⌨️ 단축키</button>
+        <button id="settingsTabFactoryBtn" onclick="switchSettingsTab('factory')">🔄 공장초기화</button>
+      </div>
+      <section id="settingsTabPreset" class="settings-modal-content active">
+        <div class="preset-panel">
+          <p class="preset-title">프로그램에 저장된 설정 프리셋</p>
+          <p class="preset-description">서체, 글자 크기·색상, 여백, 리드선 위치·투명도, 화면 비율, 반전, 스크롤, 단축키 등을 프리셋으로 보관합니다. 대본 자체와 창 위치·모니터 번호·알림 위치는 포함하지 않습니다.</p>
+          <div class="preset-selector">
+            <select id="presetSelect" aria-label="저장된 프리셋 선택" onchange="renderPresetSelection()"><option value="">저장된 프리셋 없음</option></select>
+            <button class="btn-primary" onclick="applySelectedPreset()">선택 프리셋 적용</button>
+          </div>
+          <div id="presetStatus" class="preset-status" role="status"></div>
+          <div class="preset-actions">
+            <button class="btn-success" onclick="createPresetFromCurrent()">＋ 현재 설정 새 프리셋 저장</button>
+            <button onclick="overwriteSelectedPreset()">💾 선택 프리셋에 덮어쓰기</button>
+            <button onclick="renameSelectedPreset()">✏️ 이름 변경</button>
+            <button onclick="duplicateSelectedPreset()">⧉ 복제</button>
+            <button class="btn-danger" onclick="deleteSelectedPreset()">🗑 삭제</button>
+          </div>
+          <div class="preset-actions">
+            <button id="presetDefaultButton" onclick="toggleDefaultPreset()">☆ 새 파일 기본값으로 지정</button>
+            <button onclick="exportSelectedPreset()">⬇ 외부 파일로 내보내기 (.json)</button>
+            <button onclick="importPresetFromFile()">⬆ 외부 프리셋 불러오기 (.json)</button>
+          </div>
+          <p class="preset-description">★ 기본 프리셋은 이후 <b>새 파일</b>을 누를 때 자동 적용됩니다. 기존 대본 및 저장된 파일에는 자동 적용되지 않습니다. 프리셋 수정·삭제는 편집 중인 대본을 변경하지 않습니다.</p>
+        </div>
+      </section>
+      <section id="settingsTabHotkey" class="settings-modal-content">
+        <p class="preset-description">변경할 단축키를 클릭한 뒤 원하는 키를 누르세요. 대본 편집 내용이나 저장된 프리셋에는 단축키 변경이 자동으로 덮어써지지 않습니다.</p>
+        <div id="hotkeyListContainer"></div>
+        <div class="preset-actions"><button onclick="resetHotkeys()">기본 단축키로 복원</button></div>
+      </section>
+      <section id="settingsTabFactory" class="settings-modal-content">
+        <div class="settings-danger-note">
+          <strong>🔄 설정 공장초기화</strong>
+          <p style="margin-top:9px;">현재 프로그램의 서체·여백·리드선·스크롤·단축키·알림·모니터 등의 설정을 최초 출고값으로 되돌립니다.</p>
+          <p style="margin-top:9px;"><b>대본 내용, 원본 TXT 파일, 편집 기록, 저장한 프리셋, 기본 프리셋 지정은 삭제하지 않습니다.</b> 공장초기화 후 새 파일을 만들면 지정해 둔 기본 프리셋이 다시 적용될 수 있습니다.</p>
+        </div>
+        <div class="preset-actions"><button class="btn-danger" onclick="resetAllSettings()">🔄 설정 공장초기화</button></div>
+      </section>
+      <div style="display:flex; justify-content:flex-end; padding-top:12px; border-top:1px solid var(--border); margin-top:12px; flex-shrink:0;">
+        <button class="btn-primary" onclick="closeModal('settingsModal')">설정 닫기</button>
       </div>
     </div>
   </div>
+  <input id="presetFileInput" type="file" accept=".json,application/json" style="display:none" onchange="handlePresetImportInput(event)">
 
 <script>
 const STORAGE_KEY = 'STUDIO_PROMPTER_PRO_V12';
+const PRESET_STORAGE_KEY = 'STUDIO_PROMPTER_PRESET_LIBRARY_V1';
 // 깔끔한 1줄짜리 설정 구분선 (구버전 파일과도 100% 호환)
 const COMPACT_META_HEADER = '\n\n--- [프롬프터 설정값] ---\n';
 const LEGACY_META_DELIMITER = '\n\n=== [STUDIO_PROMPTER_PROJECT_SETTINGS_DO_NOT_EDIT_BELOW] ===\n';
@@ -796,7 +861,10 @@ const defaultSampleScript = `#1 안녕하십니까. 깔끔한 txt 프로젝트 �
 윈도우에서는 Ctrl+F, 맥에서는 Command+F를 누르면 찾기 및 바꾸기(바꾸기 / 모두 바꾸기) 팝업창이 열립니다.`;
 
 let config = JSON.parse(JSON.stringify(defaultConfig));
-let savedScriptHTML = defaultSampleScript.replace(/\n/g, '<br>');
+let presetLibrary = { version: 1, defaultId: null, presets: [] };
+// 별도 프리셋 저장소: TXT 프로젝트와는 독립적으로 유지합니다.
+const PRESET_EXCLUDED_KEYS = new Set(['selectedScreenIdx', 'leftPaneWidthPct', 'viewMode', 'toastPosition', 'toastDurationSec']);
+let savedScriptHTML = ''; // 첫 실행과 [새 파일]은 빈 대본으로 시작
 
 let isPlaying = false;
 let currentScrollY = 0;
@@ -827,15 +895,20 @@ let isDraggingPreviewStage = false;
 let currentFindIndex = -1;
 let lastFindQuery = '';
 let currentProjectPath = null;
+let currentProjectName = '새 파일';
 let browserFileHandle = null;
 let lastSavedSignature = null;
 let isProjectDirty = false;
+let restoredLegacyWorkspace = false;
+let saveInProgress = false;
 let editorHistory = { html: '', operations: [], index: 0, bytes: 0, selection: null };
 let historyReady = false;
 let suspendHistory = false;
 
 window.addEventListener('DOMContentLoaded', () => {
   loadStateFromStorage();
+  loadPresetLibrary();
+  applyDefaultPresetOnFirstLaunch();
   normalizeEditorDOMStructure();
   renderColorPresets();
   initUIValues();
@@ -850,9 +923,17 @@ window.addEventListener('DOMContentLoaded', () => {
   resetToTop(false);
   setViewMode(config.viewMode || 'split', false);
   resetEditorHistory();
-  // 구버전 로컬 자동 저장은 디스크의 마지막 실제 저장 상태를 보증하지 않으므로
-  // 이번 실행에서 불러온 상태를 비교 기준으로 삼고 이후 변경사항만 감지합니다.
-  markProjectAsSaved();
+  // 이전 실행의 파일명·저장 기준점까지 복원합니다. 옛 버전 캐시는
+  // 저장 경로를 알 수 없어 '새 파일 - [수정됨]'으로 안전하게 취급합니다.
+  if (lastSavedSignature !== null) {
+    updateProjectDirtyState();
+  } else if (restoredLegacyWorkspace) {
+    lastSavedSignature = JSON.stringify({ h: '', c: defaultConfig });
+    updateProjectDirtyState();
+    persistProjectState();
+  } else {
+    markProjectAsSaved();
+  }
 
   if ('getScreenDetails' in window) {
     window.getScreenDetails().then(details => {
@@ -1029,30 +1110,41 @@ function suggestProjectFilename() {
 }
 
 async function saveProjectToTxt(fromClose = false) {
-  const content = makeProjectText();
-  const filename = suggestProjectFilename();
+  if (saveInProgress) return false;
+  saveInProgress = true;
   try {
+    const content = makeProjectText();
+    const signatureAtSave = getProjectSignature();
+    const filename = currentProjectPath ? getProjectFileName(currentProjectPath) : suggestProjectFilename();
     if (window.prompterAPI?.saveProject) {
-      const result = await window.prompterAPI.saveProject({ content, currentPath: currentProjectPath, suggestedName: filename });
+      // 이미 불러왔거나 저장한 파일은 동일 경로에 덮어씁니다. 새로운 파일만 저장 위치를 선택합니다.
+      const result = await window.prompterAPI.saveProject({
+        content, currentPath: currentProjectPath, suggestedName: filename
+      });
       if (!result?.ok) return false;
       currentProjectPath = result.path;
-      markProjectAsSaved();
-      showToast(`저장 완료: ${result.path.split(/[\/]/).pop()}`, 'success');
+      currentProjectName = getProjectFileName(result.path);
+      markProjectAsSaved(signatureAtSave);
+      showToast(`저장 완료: ${currentProjectName}`, 'success');
       return true;
     }
     if (window.showSaveFilePicker) {
       if (!browserFileHandle) {
-        browserFileHandle = await window.showSaveFilePicker({ suggestedName: filename, types: [{ description: '프롬프터 대본', accept: { 'text/plain': ['.txt'] } }] });
+        browserFileHandle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: '프롬프터 대본', accept: { 'text/plain': ['.txt'] } }]
+        });
       }
       const writable = await browserFileHandle.createWritable();
       await writable.write(content);
       await writable.close();
       currentProjectPath = browserFileHandle.name;
-      markProjectAsSaved();
-      showToast(`저장 완료: ${browserFileHandle.name}`, 'success');
+      currentProjectName = getProjectFileName(browserFileHandle.name);
+      markProjectAsSaved(signatureAtSave);
+      showToast(`저장 완료: ${currentProjectName}`, 'success');
       return true;
     }
-    // 순수 HTML의 일반 다운로드는 디스크 쓰기 성공을 확인할 수 없습니다.
+    // 순수 HTML 브라우저에서의 일반 다운로드는 파일 쓰기 성공을 확인할 수 없습니다.
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1063,11 +1155,44 @@ async function saveProjectToTxt(fromClose = false) {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     showToast('TXT 다운로드를 요청했습니다. 브라우저에서 실제 저장 여부를 확인해 주세요.', 'success');
-    return !fromClose ? false : false;
+    return false;
   } catch (err) {
     if (err?.name !== 'AbortError') showToast(`저장 실패: ${err?.message || err}`, 'error');
     return false;
+  } finally {
+    saveInProgress = false;
   }
+}
+
+// [새 파일]은 대본·설정·파일 연결을 새로 시작합니다. 이전 파일은 수정하지 않습니다.
+async function createNewProject() {
+  if (!await confirmReplaceProjectIfDirty()) return false;
+  suspendHistory = true;
+  try {
+    clearLockedPartialSelection();
+    browserFileHandle = null;
+    currentProjectPath = null;
+    currentProjectName = '새 파일';
+    config = JSON.parse(JSON.stringify(defaultConfig));
+    applyDefaultPresetToConfig();
+    savedScriptHTML = '';
+    currentFindIndex = -1;
+    lastFindQuery = '';
+    if (window.CSS?.highlights) CSS.highlights.delete('prompter-current-find');
+    document.getElementById('frFindInput').value = '';
+    document.getElementById('frReplaceInput').value = '';
+    document.getElementById('frStatusText').textContent = '';
+    initUIValues();
+    normalizeEditorDOMStructure();
+    setViewMode('split', false);
+    renderPrompterDOM();
+    resetToTop(false);
+    updatePreviewScale();
+    resetEditorHistory();
+    markProjectAsSaved();
+    showToast('새 파일을 만들었습니다.', 'success');
+    return true;
+  } finally { suspendHistory = false; }
 }
 
 async function triggerLoadTxt() {
@@ -1085,8 +1210,8 @@ async function triggerLoadTxt() {
       if (!handles?.length) return;
       const file = await handles[0].getFile();
       const content = await file.text();
-      browserFileHandle = handles[0];
-      await loadProjectFromText(content, file.name);
+      const loaded = await loadProjectFromText(content, file.name);
+      if (loaded) browserFileHandle = handles[0];
       return;
     } catch (err) { if (err?.name !== 'AbortError') showToast(`불러오기 실패: ${err?.message || err}`, 'error'); return; }
   }
@@ -1098,7 +1223,10 @@ async function triggerLoadTxt() {
 async function handleProjectFileLoad(event) {
   const file = event.target.files?.[0];
   if (!file) return;
-  try { await loadProjectFromText(await file.text(), file.name); }
+  try {
+    const loaded = await loadProjectFromText(await file.text(), file.name);
+    if (loaded) browserFileHandle = null; // 일반 파일 입력에는 재저장 핸들이 없습니다.
+  }
   catch (err) { showToast(`불러오기 실패: ${err.message}`, 'error'); }
 }
 
@@ -1136,7 +1264,7 @@ async function loadProjectFromText(content, pathOrName = '') {
     resetToTop(false);
     updatePreviewScale();
     currentProjectPath = pathOrName || null;
-    saveStateToStorage();
+    currentProjectName = getProjectFileName(pathOrName);
     resetEditorHistory();
     markProjectAsSaved();
     showToast(`불러오기 완료: ${String(pathOrName || 'TXT 대본').split(/[\/]/).pop()}`, 'success');
@@ -1479,41 +1607,307 @@ function renderColorPresets() {
   buildSwatches('leadColorPresets', (hex) => { document.getElementById('leadColorPicker').value = hex; updateConfig('leadColor', hex); });
 }
 
+/* ==========================================================================
+   v1.2.6. 프로그램 내부 프리셋: 파일별 대본과 완전히 독립된 데이터
+   ========================================================================== */
+function clonePresetValue(value) { return JSON.parse(JSON.stringify(value)); }
+function sanitizePresetSettings(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('설정값 형식이 올바르지 않습니다.');
+  const output = {};
+  const ranges = {
+    fontSize: [1,999], letterSpacing: [-50,100], lineHeight: [0.5,5], paraGap:[0,10],
+    padLeft:[0,800], padRight:[0,800], padTop:[0,1000], padBottom:[0,1000],
+    startOffsetPct:[0,120], canvasWidth:[320,8192], canvasHeight:[240,8192],
+    leadPos:[0,100], leadThickness:[1,60], leadOpacity:[5,100], targetSpeed:[-100,100],
+    speedStep:[1,50], dampingSec:[0.1,1], jumpLines:[1,50]
+  };
+  for (const key of Object.keys(defaultConfig)) {
+    if (PRESET_EXCLUDED_KEYS.has(key) || !Object.prototype.hasOwnProperty.call(raw,key)) continue;
+    const value = raw[key];
+    const original = defaultConfig[key];
+    if (key === 'hotkeys') {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      const h = {};
+      for (const action of Object.keys(defaultConfig.hotkeys)) {
+        if (typeof value[action] === 'string' && value[action].length > 0 && value[action].length <= 35) h[action] = value[action];
+      }
+      output.hotkeys = h;
+    } else if (typeof original === 'boolean') {
+      if (typeof value === 'boolean') output[key] = value;
+    } else if (ranges[key]) {
+      if (typeof value === 'number' && Number.isFinite(value)) output[key] = Math.max(ranges[key][0], Math.min(ranges[key][1], value));
+    } else if (typeof original === 'number') {
+      if (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 10000) output[key] = value;
+    } else if (typeof original === 'string') {
+      if (typeof value !== 'string' || value.length > 250) continue;
+      if (/Color$/.test(key) && !/^#[0-9a-fA-F]{6}$/.test(value)) continue;
+      if (key === 'textAlign' && !['left','right','center'].includes(value)) continue;
+      if (key === 'endMode' && !['leadLine','topScreen'].includes(value)) continue;
+      output[key] = value;
+    }
+  }
+  return output;
+}
+function getPresetSettingsFromCurrent() {
+  return sanitizePresetSettings(config);
+}
+function createPresetRecord(name, settings) {
+  const cleanName = String(name || '').trim().slice(0,60);
+  if (!cleanName) throw new Error('프리셋 이름을 입력해 주세요.');
+  return { id: `p_${Date.now()}_${Math.random().toString(36).slice(2,10)}`, name:cleanName,
+    settings:sanitizePresetSettings(settings), updatedAt:new Date().toISOString() };
+}
+function persistPresetLibrary() {
+  localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(presetLibrary));
+}
+function loadPresetLibrary() {
+  try {
+    const text = localStorage.getItem(PRESET_STORAGE_KEY);
+    if (!text) return;
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed?.presets)) return;
+    const list = [];
+    for (const p of parsed.presets.slice(0,100)) {
+      if (!p || typeof p.name !== 'string' || typeof p.id !== 'string' || !p.name.trim()) continue;
+      try { list.push({ id:p.id.slice(0,100), name:p.name.slice(0,60), settings:sanitizePresetSettings(p.settings), updatedAt:p.updatedAt || '' }); }
+      catch (_) { /* malformed legacy entry: skip */ }
+    }
+    presetLibrary = { version:1, presets:list, defaultId:list.some(p => p.id === parsed.defaultId) ? parsed.defaultId : null };
+  } catch (err) { console.warn('프리셋 저장소 복원 실패:',err); }
+}
+function applyDefaultPresetToConfig() {
+  const p = presetLibrary.presets.find(p => p.id === presetLibrary.defaultId);
+  if (!p) return;
+  config = Object.assign({},config, clonePresetValue(sanitizePresetSettings(p.settings)));
+  config.hotkeys = Object.assign({}, defaultConfig.hotkeys, p.settings.hotkeys || {});
+}
+function applyDefaultPresetOnFirstLaunch() {
+  // 이전에 작성한/자동 복구된 대본은 기본 프리셋으로 덮어쓰지 않습니다.
+  if (!localStorage.getItem(STORAGE_KEY)) applyDefaultPresetToConfig();
+}
+function applyConfigurationToCurrentDocument(settings, factory = false) {
+  if (historyReady && !suspendHistory) captureEditorHistory();
+  // initUIValues()는 editor.innerHTML을 savedScriptHTML로 복원하므로 편집 중인 내용을 먼저 저장합니다.
+  savedScriptHTML = cleanEditorHTML();
+  clearLockedPartialSelection();
+  const safe = factory ? clonePresetValue(defaultConfig) : sanitizePresetSettings(settings);
+  if (factory) config = safe;
+  else {
+    config = Object.assign({}, config, clonePresetValue(safe));
+    if (safe.hotkeys) config.hotkeys = Object.assign({}, defaultConfig.hotkeys, safe.hotkeys);
+  }
+  initUIValues();
+  if (factory) setViewMode('split',false);
+  renderPrompterDOM();
+  updatePreviewScale();
+  saveStateToStorage();
+}
+function switchSettingsTab(tab) {
+  const tabs = ['preset','hotkey','factory'];
+  if (!tabs.includes(tab)) return;
+  for (const t of tabs) {
+    document.getElementById('settingsTab' + t[0].toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
+    document.getElementById('settingsTab' + t[0].toUpperCase() + t.slice(1) + 'Btn').classList.toggle('active', t === tab);
+  }
+  if (tab === 'hotkey') renderHotkeyModalList();
+  if (tab === 'preset') renderPresetModal();
+}
+function getSelectedPreset() {
+  const selectedId = document.getElementById('presetSelect').value;
+  return presetLibrary.presets.find(p => p.id === selectedId) || null;
+}
+function renderPresetModal(preferredId = '') {
+  const select = document.getElementById('presetSelect');
+  const prior = preferredId || select.value;
+  select.replaceChildren();
+  if (!presetLibrary.presets.length) {
+    const option = document.createElement('option');
+    option.value = ''; option.textContent = '저장된 프리셋이 없습니다'; select.appendChild(option);
+  }
+  for (const p of presetLibrary.presets) {
+    const option = document.createElement('option');
+    option.value = p.id;
+    option.textContent = `${p.id === presetLibrary.defaultId ? '★ ' : ''}${p.name}`;
+    select.appendChild(option);
+  }
+  select.value = presetLibrary.presets.some(p => p.id === prior) ? prior : (presetLibrary.defaultId || presetLibrary.presets[0]?.id || '');
+  renderPresetSelection();
+}
+function renderPresetSelection() {
+  const selected = getSelectedPreset();
+  const isDefault = selected && selected.id === presetLibrary.defaultId;
+  document.getElementById('presetStatus').textContent = selected ?
+    `${selected.name}${isDefault ? ' · ★ 새 파일 기본 프리셋' : ''} · ${Object.keys(selected.settings).length}개 설정 항목` :
+    '저장된 프리셋이 없습니다. 현재 설정을 저장하여 시작하세요.';
+  const button = document.getElementById('presetDefaultButton');
+  button.textContent = isDefault ? '★ 기본 프리셋 지정 해제' : '☆ 새 파일 기본값으로 지정';
+  button.disabled = !selected;
+}
+function createPresetFromCurrent() {
+  if (presetLibrary.presets.length >= 100) { showToast('프리셋은 최대 100개까지 저장할 수 있습니다.', 'error'); return; }
+  const name = prompt('새 프리셋 이름을 입력하세요.', `프리셋 ${presetLibrary.presets.length + 1}`);
+  if (name === null) return;
+  try {
+    const preset = createPresetRecord(name,getPresetSettingsFromCurrent());
+    presetLibrary.presets.push(preset); persistPresetLibrary(); renderPresetModal(preset.id);
+    showToast(`프리셋 저장 완료: ${preset.name}`, 'success');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+function applySelectedPreset() {
+  const p = getSelectedPreset();
+  if (!p) { showToast('적용할 프리셋을 선택하세요.', 'error'); return; }
+  applyConfigurationToCurrentDocument(p.settings);
+  showToast(`프리셋 적용 완료: ${p.name}`, 'success');
+}
+function overwriteSelectedPreset() {
+  const p = getSelectedPreset(); if (!p) return;
+  if (!confirm(`현재 설정으로 "${p.name}" 프리셋을 덮어쓰시겠습니까?\n대본은 변경되지 않습니다.`)) return;
+  p.settings = getPresetSettingsFromCurrent(); p.updatedAt = new Date().toISOString();
+  persistPresetLibrary(); renderPresetModal(p.id); showToast(`프리셋 업데이트 완료: ${p.name}`, 'success');
+}
+function renameSelectedPreset() {
+  const p = getSelectedPreset(); if (!p) return;
+  const name = prompt('변경할 프리셋 이름',p.name); if (name === null) return;
+  if (!name.trim()) { showToast('프리셋 이름은 비워 둘 수 없습니다.', 'error'); return; }
+  p.name = name.trim().slice(0,60); p.updatedAt = new Date().toISOString();
+  persistPresetLibrary(); renderPresetModal(p.id); showToast('프리셋 이름을 변경했습니다.', 'success');
+}
+function duplicateSelectedPreset() {
+  const p = getSelectedPreset(); if (!p) return;
+  if (presetLibrary.presets.length >= 100) { showToast('프리셋은 최대 100개까지 저장할 수 있습니다.', 'error'); return; }
+  const name = prompt('복제할 프리셋 이름',`${p.name} 복사본`); if (name === null) return;
+  try {
+    const copy = createPresetRecord(name,p.settings);
+    presetLibrary.presets.push(copy); persistPresetLibrary(); renderPresetModal(copy.id);
+    showToast(`프리셋 복제 완료: ${copy.name}`, 'success');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+function deleteSelectedPreset() {
+  const p = getSelectedPreset(); if (!p) return;
+  if (!confirm(`"${p.name}" 프리셋을 삭제하시겠습니까?\n현재 대본과 설정은 영향을 받지 않습니다.`)) return;
+  presetLibrary.presets = presetLibrary.presets.filter(item => item.id !== p.id);
+  if (presetLibrary.defaultId === p.id) presetLibrary.defaultId = null;
+  persistPresetLibrary(); renderPresetModal(); showToast('프리셋을 삭제했습니다.', 'success');
+}
+function toggleDefaultPreset() {
+  const p = getSelectedPreset(); if (!p) return;
+  presetLibrary.defaultId = presetLibrary.defaultId === p.id ? null : p.id;
+  persistPresetLibrary(); renderPresetModal(p.id);
+  showToast(presetLibrary.defaultId ? `새 파일 기본 프리셋: ${p.name}` : '새 파일 기본 프리셋 지정을 해제했습니다.', 'success');
+}
+function serializeSelectedPreset() {
+  const p = getSelectedPreset();
+  if (!p) throw new Error('내보낼 프리셋을 선택하세요.');
+  return JSON.stringify({format:'studio-prompter-preset',version:1,name:p.name,settings:sanitizePresetSettings(p.settings)},null,2);
+}
+async function exportSelectedPreset() {
+  let content, p;
+  try { p = getSelectedPreset(); content = serializeSelectedPreset(); }
+  catch (err) { showToast(err.message,'error'); return; }
+  const filename = `${p.name.replace(/[\\/:*?"<>|\x00-\x1F]/g,'_')}.prompter-preset.json`;
+  try {
+    if (window.prompterAPI?.exportPreset) {
+      const result = await window.prompterAPI.exportPreset({content,suggestedName:filename});
+      if (result?.ok) showToast(`프리셋 외부 저장 완료: ${p.name}`, 'success');
+    } else if (window.showSaveFilePicker) {
+      const handle = await window.showSaveFilePicker({suggestedName:filename,types:[{description:'프롬프터 프리셋',accept:{'application/json':['.json']}}]});
+      const writer = await handle.createWritable(); await writer.write(content); await writer.close();
+      showToast(`프리셋 파일 저장 완료: ${p.name}`, 'success');
+    } else {
+      const blob = new Blob([content],{type:'application/json;charset=utf-8'});
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),5000);
+      showToast('프리셋 파일 다운로드를 요청했습니다. 저장 여부를 확인하세요.', 'success');
+    }
+  } catch (err) { if (err?.name !== 'AbortError') showToast(`내보내기 실패: ${err.message}`, 'error'); }
+}
+async function importPresetFromFile() {
+  if (window.prompterAPI?.importPreset) {
+    try {
+      const result = await window.prompterAPI.importPreset();
+      if (result?.ok) loadImportedPresetJSON(result.content);
+    } catch (err) { showToast(`프리셋 파일 읽기 실패: ${err.message}`, 'error'); }
+  } else {
+    const input = document.getElementById('presetFileInput'); input.value=''; input.click();
+  }
+}
+async function handlePresetImportInput(event) {
+  const file = event.target.files?.[0]; if (!file) return;
+  if (file.size > 128 * 1024) { showToast('128KB 이하 JSON 파일만 불러올 수 있습니다.', 'error'); return; }
+  try { loadImportedPresetJSON(await file.text()); }
+  catch (err) { showToast(`프리셋 불러오기 실패: ${err.message}`, 'error'); }
+}
+function loadImportedPresetJSON(content) {
+  try {
+    if (typeof content !== 'string' || content.length > 128 * 1024) throw new Error('파일이 너무 큽니다.');
+    if (presetLibrary.presets.length >= 100) throw new Error('프리셋은 최대 100개까지 저장할 수 있습니다.');
+    const data = JSON.parse(content);
+    if (data?.format !== 'studio-prompter-preset' || data.version !== 1) throw new Error('Studio Prompter PRO 프리셋 형식이 아닙니다.');
+    if (typeof data.name !== 'string' || !data.name.trim()) throw new Error('프리셋 이름이 올바르지 않습니다.');
+    const p = createPresetRecord(data.name,data.settings);
+    // 다른 PC의 프리셋과 이름이 같아도 기존 데이터를 덮어쓰지 않습니다.
+    if (presetLibrary.presets.some(old => old.name === p.name)) p.name = `${p.name.slice(0,49)} (가져옴)`;
+    presetLibrary.presets.push(p); persistPresetLibrary(); renderPresetModal(p.id);
+    showToast(`프리셋 불러오기 완료: ${p.name}`, 'success');
+  } catch (err) { showToast(`프리셋 파일 오류: ${err.message}`, 'error'); }
+}
+
+function getProjectFileName(pathOrName) {
+  const name = String(pathOrName || '').split(/[\\/]/).filter(Boolean).pop();
+  return name || '새 파일';
+}
+
 function loadStateFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed.config) {
-        config = Object.assign({}, defaultConfig, parsed.config);
-        config.hotkeys = Object.assign({}, defaultConfig.hotkeys, parsed.config.hotkeys || {});
-      }
-      if (parsed.scriptHTML) savedScriptHTML = parsed.scriptHTML;
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed.config) {
+      config = Object.assign({}, defaultConfig, parsed.config);
+      config.hotkeys = Object.assign({}, defaultConfig.hotkeys, parsed.config.hotkeys || {});
     }
-  } catch (e) {}
+    if (typeof parsed.scriptHTML === 'string') savedScriptHTML = parsed.scriptHTML;
+    if (parsed.project && typeof parsed.project === 'object') {
+      const savedPath = parsed.project.path;
+      // Electron은 절대 경로를 유지하므로 재실행 후에도 원본 TXT를 덮어쓸 수 있습니다.
+      // 브라우저 File System Access 핸들은 JSON에서 복원할 수 없어 이름만 유지합니다.
+      currentProjectPath = window.prompterAPI && typeof savedPath === 'string' ? savedPath : null;
+      currentProjectName = getProjectFileName(parsed.project.name || currentProjectPath);
+      lastSavedSignature = typeof parsed.project.lastSavedSignature === 'string' ? parsed.project.lastSavedSignature : null;
+      if (lastSavedSignature === null) restoredLegacyWorkspace = true;
+    } else if (typeof parsed.scriptHTML === 'string') {
+      restoredLegacyWorkspace = true;
+    }
+  } catch (e) { console.warn('이전 작업 공간 불러오기 오류:', e); }
 }
 
-function saveStateToStorage() {
-  if (historyReady && !suspendHistory) captureEditorHistory();
+function persistProjectState() {
   try {
     const editor = document.getElementById('scriptEditor');
     const clone = editor.cloneNode(true);
     clone.querySelectorAll('.active-selection-lock').forEach(el => el.classList.remove('active-selection-lock'));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ config: config, scriptHTML: clone.innerHTML }));
-    updateProjectDirtyState();
-  } catch (e) {}
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      config, scriptHTML: clone.innerHTML,
+      project: {
+        path: window.prompterAPI ? currentProjectPath : null,
+        name: currentProjectName,
+        lastSavedSignature
+      }
+    }));
+  } catch (err) { console.warn('자동 복구 데이터 저장 오류:', err); }
+}
+
+function saveStateToStorage() {
+  if (historyReady && !suspendHistory) captureEditorHistory();
+  updateProjectDirtyState();
+  persistProjectState();
 }
 
 function resetAllSettings() {
-  if (!confirm('모든 환경설정을 초기 기본값으로 되돌리시겠습니까?')) return;
-  clearLockedPartialSelection();
-  config = JSON.parse(JSON.stringify(defaultConfig));
-  initUIValues();
-  setViewMode('split');
-  renderPrompterDOM();
-  resetToTop(false);
-  updatePreviewScale();
-  saveStateToStorage();
+  if (!confirm('설정 공장초기화를 실행하시겠습니까?\n현재 설정만 출고값으로 바뀌며, 대본·저장된 프리셋·기본 프리셋 지정은 유지됩니다.')) return;
+  applyConfigurationToCurrentDocument(JSON.parse(JSON.stringify(defaultConfig)), true);
+  showToast('설정 공장초기화 완료 (대본과 프리셋은 유지)', 'success');
 }
 
 function initEnterAndBlurNumberInputs() {
@@ -2699,6 +3093,11 @@ function handleGlobalKeyDown(e, fromBroadcastWin = false) {
     return;
   }
 
+  if (!fromBroadcastWin && document.getElementById('settingsModal')?.classList.contains('open')) {
+    if (e.key === 'Escape') { e.preventDefault(); closeModal('settingsModal'); }
+    return;
+  }
+
   const keyName = e.code === 'Space' ? 'Space' : e.key;
 
   // 만약 찾기/바꾸기 팝업이 열려 있을 때 ESC를 누르면 팝업 먼저 닫기
@@ -2887,6 +3286,24 @@ function getTargetScreenBoundsForBroadcast() {
   return { left: window.screen.availLeft ?? 0, top: window.screen.availTop ?? 0, width: window.screen.availWidth || 1920, height: window.screen.availHeight || 1080 };
 }
 
+// Electron main process uses the complete display bounds, not availWidth/availHeight
+// (which exclude the Windows taskbar). The browser-only version keeps its fallback.
+function getNativeBroadcastScreenHint() {
+  let selected = null;
+  if (config.selectedScreenIdx !== 'default' && detectedScreens[config.selectedScreenIdx]) {
+    selected = detectedScreens[config.selectedScreenIdx];
+  } else {
+    selected = detectedScreens.find(scr => !scr.isPrimary) || null;
+  }
+  if (!selected) return null; // Electron will choose the first secondary display.
+  return {
+    x: selected.left ?? selected.availLeft ?? 0,
+    y: selected.top ?? selected.availTop ?? 0,
+    width: selected.width ?? selected.availWidth,
+    height: selected.height ?? selected.availHeight
+  };
+}
+
 function startBroadcast() {
   if (broadcastWin && !broadcastWin.closed) {
     broadcastWin.focus();
@@ -2929,7 +3346,9 @@ function startBroadcast() {
   activateControlZone();
 
   if (config.startBroadcastFullscreen) {
-    setTimeout(() => setBroadcastFullscreenState(true), 150);
+    // No delayed requestFullscreen(): that loses the user gesture in browsers,
+    // and on Windows may leave an ordinary popup underneath the taskbar.
+    setBroadcastFullscreenState(true);
   }
 
   const checkTimer = setInterval(() => {
@@ -2953,6 +3372,42 @@ function toggleBroadcastFullscreen() {
 function setBroadcastFullscreenState(makeFull) {
   if (!broadcastWin || broadcastWin.closed) return;
   const bDoc = broadcastWin.document;
+
+  // Desktop application: ask Electron for an OS-level fullscreen window.
+  // The native window will cover the entire monitor, including its taskbar area.
+  // HTML fullscreen is kept exclusively for the standalone-browser fallback.
+  if (window.prompterAPI?.setBroadcastNativeFullscreen) {
+    if (makeFull && !isBroadcastCustomFull) {
+      prevBroadcastBounds = {
+        left: broadcastWin.screenX,
+        top: broadcastWin.screenY,
+        width: Math.max(480, broadcastWin.outerWidth),
+        height: Math.max(300, broadcastWin.outerHeight)
+      };
+    }
+    isBroadcastCustomFull = !!makeFull;
+    bDoc.body.classList.toggle('is-fullscreen', !!makeFull);
+    const screenHint = makeFull ? getNativeBroadcastScreenHint() : null;
+    window.prompterAPI.setBroadcastNativeFullscreen(!!makeFull, screenHint)
+      .then(result => {
+        if (!broadcastWin || broadcastWin.closed) return;
+        if (!result?.ok) {
+          isBroadcastCustomFull = !makeFull;
+          bDoc.body.classList.toggle('is-fullscreen', isBroadcastCustomFull);
+          showToast('송출창 전체화면 전환 실패: ' + (result?.error || '알 수 없는 오류'));
+        }
+        updateBroadcastScale();
+      })
+      .catch(error => {
+        if (!broadcastWin || broadcastWin.closed) return;
+        isBroadcastCustomFull = !makeFull;
+        bDoc.body.classList.toggle('is-fullscreen', isBroadcastCustomFull);
+        showToast('송출창 전체화면 전환 실패: ' + error.message);
+      });
+    setTimeout(updateBroadcastScale, 120);
+    broadcastWin.focus();
+    return;
+  }
 
   if (makeFull) {
     if (!isBroadcastCustomFull && !bDoc.fullscreenElement) {
@@ -3004,7 +3459,12 @@ function gatherBroadcastToEditor() {
   const bDoc = broadcastWin.document;
   isBroadcastCustomFull = false;
   bDoc.body.classList.remove('is-fullscreen');
-  if (bDoc.fullscreenElement && bDoc.exitFullscreen) {
+  if (window.prompterAPI?.setBroadcastNativeFullscreen) {
+    // Leave actual OS fullscreen *before* moving the window to the editor.
+    window.prompterAPI.setBroadcastNativeFullscreen(false).catch(error => {
+      showToast('송출창 창모드 전환 실패: ' + error.message);
+    });
+  } else if (bDoc.fullscreenElement && bDoc.exitFullscreen) {
     bDoc.exitFullscreen().catch(() => {});
   }
 
@@ -3026,7 +3486,7 @@ function gatherBroadcastToEditor() {
       broadcastWin.focus();
     } catch (e) {}
     updateBroadcastScale();
-  }, 80);
+  }, 120);
 }
 
 function stopBroadcast() {
@@ -3247,7 +3707,7 @@ function updateBroadcastScale() {
 }
 
 function openModal(id) {
-  if (id === 'hotkeyModal') renderHotkeyModalList();
+  if (id === 'settingsModal') switchSettingsTab('preset');
   if (id === 'monitorModal') populateScreenSelectOptions();
   document.getElementById(id).classList.add('open');
 }
@@ -3375,28 +3835,44 @@ function redoEditorChange() { applyEditorHistoryStep(1); }
 function getProjectSignature() {
   return JSON.stringify({ h: cleanEditorHTML(), c: config });
 }
+function showProjectFileStatus() {
+  const display = `${currentProjectName}${isProjectDirty ? ' - [수정됨]' : ''}`;
+  const label = document.getElementById('projectFileLabel');
+  if (label) {
+    label.textContent = display;
+    label.classList.toggle('is-dirty', isProjectDirty);
+    label.title = `${display}${currentProjectPath ? `\n${currentProjectPath}` : ''}`;
+  }
+  document.title = `${display} - Studio Prompter PRO`;
+}
+
 function updateProjectDirtyState() {
   if (lastSavedSignature === null) return;
   const dirty = getProjectSignature() !== lastSavedSignature;
-  if (dirty === isProjectDirty) return;
-  isProjectDirty = dirty;
-  document.title = `프로페셔널 스튜디오 프롬프터 PRO${dirty ? ' ● 미저장' : ''}`;
-  window.prompterAPI?.setDirty?.(dirty);
+  if (dirty !== isProjectDirty) {
+    isProjectDirty = dirty;
+    window.prompterAPI?.setDirty?.(dirty);
+  }
+  showProjectFileStatus();
 }
-// [저장하지 않음]을 선택하면 로컬 자동복구 데이터도 마지막 저장 상태로 되돌립니다.
+
+// '저장하지 않음' 선택 시 자동 복구 데이터도 마지막 저장 기준점으로 되돌립니다.
 function discardUnsavedChangesForExit() {
   if (!lastSavedSignature) return;
   try {
     const prior = JSON.parse(lastSavedSignature);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ config: prior.c, scriptHTML: prior.h }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      config: prior.c, scriptHTML: prior.h,
+      project: { path: window.prompterAPI ? currentProjectPath : null,
+        name: currentProjectName, lastSavedSignature }
+    }));
   } catch (err) { console.warn('미저장 자동 복구 데이터 정리 실패', err); }
 }
 
-function markProjectAsSaved() {
-  lastSavedSignature = getProjectSignature();
-  isProjectDirty = false;
-  document.title = '프로페셔널 스튜디오 프롬프터 PRO';
-  window.prompterAPI?.setDirty?.(false);
+function markProjectAsSaved(signature = getProjectSignature()) {
+  lastSavedSignature = signature;
+  updateProjectDirtyState();
+  persistProjectState();
 }
 
 function updateToastSettings(key, value) {

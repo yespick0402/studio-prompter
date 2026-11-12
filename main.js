@@ -1,10 +1,12 @@
 'use strict';
-const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session, screen } = require('electron');
+const { createBroadcastFullscreenController } = require('./broadcast-fullscreen.cjs');
 const path = require('path');
 const fs = require('fs/promises');
 
 app.commandLine.appendSwitch('enable-features', 'WindowPlacement');
 let mainWindow = null;
+const broadcastFullscreen = createBroadcastFullscreenController(screen, process.platform);
 let hasUnsavedChanges = false;
 let allowExit = false;
 let exitDialogOpen = false;
@@ -40,8 +42,8 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (!url.startsWith('about:blank')) return { action: 'deny' };
+  mainWindow.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    if (url !== 'about:blank' || frameName !== 'StudioPrompterBroadcastWindow') return { action: 'deny' };
     return {
       action: 'allow',
       overrideBrowserWindowOptions: {
@@ -53,6 +55,12 @@ function createWindow() {
         webPreferences: { nodeIntegration: false, contextIsolation: true }
       }
     };
+  });
+
+  // Only the known, renderer-created broadcast popup may be controlled by IPC.
+  mainWindow.webContents.on('did-create-window', (childWindow, details) => {
+    if (details.frameName !== 'StudioPrompterBroadcastWindow') return;
+    broadcastFullscreen.attach(childWindow);
   });
 
   mainWindow.on('close', (event) => {
@@ -93,6 +101,14 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+ipcMain.handle('prompter-broadcast-native-fullscreen', async (event, options) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) {
+    throw new Error('잘못된 창에서 송출창 제어를 요청했습니다.');
+  }
+  const makeFull = options?.fullscreen === true;
+  return broadcastFullscreen.change(makeFull, options?.screenBounds);
+});
+
 ipcMain.on('prompter-dirty', (event, dirty) => {
   if (!mainWindow || event.sender !== mainWindow.webContents) return;
   hasUnsavedChanges = Boolean(dirty);
@@ -129,6 +145,31 @@ ipcMain.handle('prompter-open-project', async (event) => {
   const filepath = result.filePaths[0];
   const content = await fs.readFile(filepath, 'utf8');
   return { ok: true, path: filepath, content };
+});
+
+// 프리셋은 별도 JSON으로 내보내고 불러옵니다. 기존 프로젝트 TXT는 건드리지 않습니다.
+ipcMain.handle('prompter-export-preset', async (event, data) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('잘못된 창에서 요청했습니다.');
+  if (typeof data?.content !== 'string' || data.content.length > 128 * 1024) throw new Error('프리셋 크기가 올바르지 않습니다.');
+  const filename = path.basename(String(data.suggestedName || '프롬프터_프리셋.json')).replace(/[\\/:*?"<>|]/g, '_');
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: '프롬프터 프리셋 내보내기', defaultPath: path.join(app.getPath('documents'), filename),
+    buttonLabel: '저장', filters: [{ name: '프롬프터 JSON 프리셋', extensions: ['json'] }]
+  });
+  if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+  await fs.writeFile(result.filePath, data.content, 'utf8');
+  return { ok:true, path:result.filePath };
+});
+ipcMain.handle('prompter-import-preset', async (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('잘못된 창에서 요청했습니다.');
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title:'프롬프터 프리셋 불러오기', properties:['openFile'],
+    filters:[{ name:'프롬프터 JSON 프리셋', extensions:['json'] }]
+  });
+  if (result.canceled || !result.filePaths.length) return { ok:false, canceled:true };
+  const info = await fs.stat(result.filePaths[0]);
+  if (info.size > 128 * 1024) throw new Error('128KB 이하의 프리셋만 불러올 수 있습니다.');
+  return { ok:true, content:await fs.readFile(result.filePaths[0], 'utf8') };
 });
 
 ipcMain.handle('prompter-confirm-replace', async (event) => {
