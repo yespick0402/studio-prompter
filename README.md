@@ -1,3 +1,16 @@
+# v1.2.6 GitHub 업로드 복구판 — 테스트 13/18 오류 수정
+
+이 복구판은 **프롬프터 앱의 프리셋 코드를 변경하지 않습니다.** 실제 v1.2.6 원본 ZIP의 index.html은 18개 테스트가 모두 통과했습니다. 따라서 GitHub에서 13개 성공/5개 실패가 나오면 **GitHub 저장소의 index.html이 구버전으로 남았는지 확인**해야 합니다.
+
+1. 이 ZIP을 풀고 `StudioPrompterPro` 폴더 **안에 있는** `index.html`을 GitHub 저장소 **최상위(루트)의 `index.html`**에 덮어쓰세요. (하위 폴더 안에 올리면 검사 대상 파일이 바뀌지 않습니다.)
+2. `tests/presets.test.cjs`, `.github/workflows/build.yml`, `scripts/verify-source.cjs`, `package.json`도 함께 올리세요. 가장 안전한 방법은 압축파일 안의 프로젝트 전체를 루트에 덮어쓰는 것입니다.
+3. GitHub에서 **Commit changes**를 누른 뒤, `Actions`에서 **새 Commit을 대상으로** 빌드를 실행하세요. 단순히 이전 실패 작업의 `Re-run jobs`를 누르면 수정 이전 Commit으로 다시 빌드됩니다.
+4. `GitHub 업로드 파일 일치 검사 (프리셋/설정)` 단계가 ✅ 표시되고 `소스 및 빌드 설정 검사`에서 18개 테스트가 통과해야 합니다.
+
+이 복구판은 `index.html`에 필수 프리셋 코드가 없는 경우 어떤 파일을 다시 올려야 하는지 바로 보여줍니다. 테스트가 프로그램 기능을 가리도록 비활성화하지 않았습니다.
+
+---
+
 # Studio Prompter PRO v1.2.6 — 프리셋·통합 설정 추가
 
 ## v1.2.6 업데이트
@@ -109,3 +122,18 @@
 - `npm test`: 소스 파일 존재 및 빌드 설정을 확인하는 단위 테스트.
 - **이 작업 환경은 Linux이므로 macOS Golden Gate 27.2.1에서 실제 실행을 확인할 수 없습니다.** GitHub Actions에서 빌드와 코드서명 검사까지 완료해도 다운로드한 앱의 Gatekeeper 허용 여부는 Mac에서 확인해야 합니다.
 - 공식 코드 서명 안내: https://www.electron.build/v26/docs/features/code-signing/code-signing-mac/
+
+
+---
+
+## 2026-11-12 GitHub 자동 테스트 복구 안내 (v1.2.6 StableFix)
+
+이 패키지는 **파일 누락/버전 혼합을 탐지**합니다. 이전 복구본 자체는 18개 테스트 통과였지만 GitHub의 실제 파일이 다른 상태일 수 있습니다.
+
+1. 이 ZIP을 로컬 컴퓨터에서 압축 해제합니다.
+2. 바깥 `StudioPrompterPro` 폴더를 업로드하는 것이 아니라 **그 폴더 안에 있는 파일 및 하위 폴더 전체**를 GitHub 저장소 최상위에 올립니다. 특히 `index.html`, `package.json`, `tests` 폴더, `scripts` 폴더, 숨김 `.github` 폴더가 필요합니다.
+3. GitHub 업로드 화면에서 덮어쓸 파일 목록을 확인하고 `Commit changes`를 누릅니다.
+4. **새 Commit으로 자동 시작된** `Windows / Mac 프로그램 만들기`를 확인합니다. 이전 실행의 `Re-run jobs`는 이전 코드를 재실행하므로 사용하지 않습니다.
+5. `GitHub 업로드 파일 일치 검사`가 실패하면 로그에 틀린 파일의 이름이 나옵니다. `소스 및 빌드 설정 검사`가 실패하면 실행 결과의 `StudioPrompter-Diagnostics-...` 진단 파일을 내려받아 `test-results.txt`를 확인합니다.
+
+Windows 및 Mac 빌드 방식은 이전 Camera DateShift 방식 그대로입니다. 서명/공증 부재로 인한 Mac Gatekeeper 동작은 별개 문제입니다. Node 20 경고 제거를 위해 checkout/setup-node/upload-artifact를 v5로 갱신했습니다. Node 프로젝트 자체는 22로 유지합니다.

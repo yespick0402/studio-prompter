@@ -38,7 +38,7 @@ function makeHarness() {
     captureEditorHistory:()=>{}, renderPrompterDOM:()=>{}, updatePreviewScale:()=>{},
     setViewMode:()=>{},saveStateToStorage:()=>{} });
   const defaults=from('const defaultConfig = {','const defaultSampleScript');
-  const core=from('/* =========================================================================='+'\n   v1.2.6. 프로그램 내부 프리셋', 'function getProjectFileName(pathOrName)');
+  const core=from('function clonePresetValue(value)', 'function getProjectFileName(pathOrName)');
   vm.runInContext([defaults,
     "let config = JSON.parse(JSON.stringify(defaultConfig)); let presetLibrary = {version:1,defaultId:null,presets:[]};",
     "const PRESET_STORAGE_KEY = 'TEST_PRESETS'; const STORAGE_KEY = 'TEST_WORKSPACE';",
