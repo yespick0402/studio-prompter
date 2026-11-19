@@ -1,16 +1,17 @@
 {
   "schema": 1,
-  "release": "1.2.6-stablefix",
-  "purpose": "Detect inconsistent GitHub file uploads before npm test",
+  "release": "1.2.7-reading-time",
+  "purpose": "Validate matching release sources across Windows/macOS with actual reading time tests",
   "files": {
-    "index.html": "0e13ac0c03beaae34d85f096a4c3822a02ba0737ae0941a3524eb6ca82db40c1",
+    "index.html": "4a97bf37643e9b3970cc3936eb16a04848699ac44d46a2e2bc08e3444c9db42b",
     "main.js": "488d1e442924abdcce14be6b94b08a2b49093a25f98e73b5403dbb73a6a240ee",
     "preload.js": "5abde64937762970d5a6014da785788f596252fd166c77b526d340b46db5bb13",
     "broadcast-fullscreen.cjs": "09efab3862559aa68e2c989eb379bed7d1ed0167d49e810490320aa414c7fe8d",
-    "package.json": "0e73cd2c7719479d7d58817769ff44b81925499e85eb67138ab21254abbe4a61",
-    "tests/broadcast-fullscreen.test.cjs": "f8c18599c6de407e1716abfabe9f4de1cd216697c198f0e799a9a4fd565f26f3",
+    "package.json": "7703c46ebc2aaf971646d18182f6a46a27a93bdf2027a004e906b2e217de5dde",
+    "tests/broadcast-fullscreen.test.cjs": "f37486480dcb4d7f1bc1bd66786547b1cdf5fe0646c99b43c607aee2fddff513",
     "tests/build-config.test.cjs": "e8a5bbb7d6885cbbfbabe526b8a5910301ca871c5eba6681a70a6e37a1fb0d74",
     "tests/document-state.test.cjs": "2b20679dd00841f3dc2a723350549de767d6299f8d6c3bf6f4c834e8c08ba7d1",
-    "tests/presets.test.cjs": "2544e77479b21166ef95093341f48b34a7fe6d830edbee9b0d2da9dd37d45c8e"
+    "tests/presets.test.cjs": "2544e77479b21166ef95093341f48b34a7fe6d830edbee9b0d2da9dd37d45c8e",
+    "tests/reading-time.test.cjs": "35972f76d882cbb12cb3a83a9a9ad1ebbe2c8f617539d7492750d5bd7e61378f"
   }
 }

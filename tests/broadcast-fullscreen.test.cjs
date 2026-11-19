@@ -81,7 +81,7 @@ test('macOS에서는 native simpleFullscreen 사용', () => {
 test('기존 v1.2.4 기능과 Camera DateShift GitHub 빌드 설정 그대로 유지', () => {
   const dir = path.join(__dirname, '..');
   const pkg = require('../package.json');
-  assert.equal(pkg.version, '1.2.6');
+  assert.equal(pkg.version, '1.2.7');
   assert.ok(pkg.build.files.includes('broadcast-fullscreen.cjs'));
   const main = fs.readFileSync(path.join(dir, 'main.js'), 'utf8');
   const preload = fs.readFileSync(path.join(dir, 'preload.js'), 'utf8');

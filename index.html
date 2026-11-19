@@ -116,6 +116,16 @@
   .time-stat-left { color: var(--accent-bright); display: flex; align-items: center; gap: 5px; }
   .time-stat-center { color: var(--text-muted); font-size: 11px; }
   .time-stat-right { color: var(--warning); display: flex; align-items: center; gap: 5px; }
+  /* v1.2.7 실제 읽기 시간: 현재 속도 기준 예상값과 분리 */
+  .reading-time-row { display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 5px 16px; padding: 7px 10px; border-radius: 7px;
+    background: rgba(122,162,247,.085); border: 1px solid rgba(122,162,247,.18);
+    font-size: 12px; color: var(--text-main); }
+  .reading-time-row strong { color: #fff; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .reading-time-row #lblReadTimeStatus { color: var(--accent-bright); font-weight: 700; }
+  .reading-time-row.is-finished { border-color: var(--success); background: rgba(158,206,106,.09); }
+  .reading-time-row.is-finished #lblReadTimeStatus { color: var(--success); }
+  .reading-time-row.is-seeked #lblReadTimeStatus { color: var(--warning); }
 
   .yt-progress-container { width: 100%; height: 16px; display: flex; align-items: center; cursor: pointer; position: relative; }
   .yt-progress-track { width: 100%; height: 5px; background: rgba(255, 255, 255, 0.2); border-radius: 99px; position: relative; transition: height 0.15s; }
@@ -633,6 +643,12 @@
           </div>
         </div>
 
+        <div class="reading-time-row" id="readingTimePanel" aria-live="off"
+             title="처음에서 출발해 자동 재생으로 끝까지 도달할 때 측정합니다. 속도 변경·역주행 반영. 일시정지·속도 0·수동 드래그는 읽기 시간에서 제외하며 전체 경과에는 포함합니다.">
+          <span>🎙 실제 읽기 시간: <strong id="lblActualReadTime">00분 00초</strong></span>
+          <span>🕒 전체 경과(일시정지 포함): <strong id="lblElapsedReadTime">00분 00초</strong></span>
+          <span id="lblReadTimeStatus" role="status">처음부터 재생하면 측정 시작</span>
+        </div>
         <div class="yt-progress-container" id="ytProgressBar">
           <div class="yt-progress-track">
             <div class="yt-progress-fill" id="ytProgressFill"></div>
@@ -870,6 +886,8 @@ let isPlaying = false;
 let currentScrollY = 0;
 let currentVelocity = 0;
 let lastFrameTime = performance.now();
+// 실제 읽기 시간은 대본/프리셋에 저장되지 않는 일시적 측정 기록입니다.
+let readingRun = { startedAt: null, activeFrom: null, activeMs: 0, finishedAt: null, manualSeeked: false };
 let lastEditorAutoScrollTime = 0;
 let currentPreviewScale = 0.3;
 
@@ -1186,7 +1204,7 @@ async function createNewProject() {
     normalizeEditorDOMStructure();
     setViewMode('split', false);
     renderPrompterDOM();
-    resetToTop(false);
+    resetToTop();
     updatePreviewScale();
     resetEditorHistory();
     markProjectAsSaved();
@@ -1261,7 +1279,7 @@ async function loadProjectFromText(content, pathOrName = '') {
     normalizeEditorDOMStructure();
     setViewMode(config.viewMode || 'split', false);
     renderPrompterDOM();
-    resetToTop(false);
+    resetToTop();
     updatePreviewScale();
     currentProjectPath = pathOrName || null;
     currentProjectName = getProjectFileName(pathOrName);
@@ -1410,6 +1428,7 @@ function syncPreviewToRange(range) {
   const totalEditorHeight = Math.max(1, editor.scrollHeight - 36);
   const ratio = Math.max(0, Math.min(1, (offsetInEditor - 18) / totalEditorHeight));
   const { startY, endY } = getScrollBounds();
+  markReadingTimingManualSeek();
   currentScrollY = startY + (endY - startY) * ratio;
   currentVelocity = 0;
   applyScrollTransform();
@@ -1563,6 +1582,7 @@ function syncPreviewToEditorCaret() {
   const ratio = Math.max(0, Math.min(1, (caretOffsetInEditor - 18) / totalEditorHeight));
 
   const { startY, endY } = getScrollBounds();
+  markReadingTimingManualSeek();
   currentScrollY = startY + (endY - startY) * ratio;
   currentVelocity = 0;
   applyScrollTransform();
@@ -1963,6 +1983,7 @@ function initPreviewMouseWheelAndDrag() {
     if (!canUseMouseOnPreview()) return;
     const { startY, endY } = getScrollBounds();
     const scaleFactor = Math.max(0.15, currentPreviewScale);
+    markReadingTimingManualSeek();
     currentScrollY = Math.max(startY, Math.min(endY, currentScrollY + (e.deltaY / scaleFactor) * 0.65));
     applyScrollTransform();
   }, { passive: false });
@@ -1972,6 +1993,8 @@ function initPreviewMouseWheelAndDrag() {
     activateControlZone();
     if (!canUseMouseOnPreview()) return;
     isDraggingPreviewStage = true;
+    syncReadingTiming(performance.now());
+    markReadingTimingManualSeek();
     stage.classList.add('mouse-dragging');
     dragStartY = e.clientY;
     dragStartScrollY = currentScrollY;
@@ -1992,7 +2015,9 @@ function initPreviewMouseWheelAndDrag() {
 
   window.addEventListener('mouseup', () => {
     if (isDraggingPreviewStage) {
+      syncReadingTiming(performance.now());
       isDraggingPreviewStage = false;
+      syncReadingTiming(performance.now());
       stage.classList.remove('mouse-dragging');
     }
   });
@@ -2823,6 +2848,81 @@ function clampScrollPosition() {
   if (currentScrollY > endY) currentScrollY = endY;
 }
 
+/* ==========================================================================
+   v1.2.7. 시작부터 끝까지 실제 읽기 시간 측정
+   - 속도 변경 시 과거 시간을 재계산하지 않습니다.
+   - 재생 중 일시정지/속도 0/직접 드래그는 실제 읽기 시간에서 제외합니다.
+   - 재생 시작~완료까지 전체 경과도 함께 표시합니다.
+   - 사용자가 중간을 건너뛰면 결과에 "수동 이동 포함"을 명시합니다.
+   ========================================================================== */
+function resetReadingTiming() {
+  readingRun = { startedAt: null, activeFrom: null, activeMs: 0, finishedAt: null, manualSeeked: false };
+  updateReadingTimingDisplay();
+}
+function markReadingTimingManualSeek() {
+  if (readingRun.startedAt !== null && readingRun.finishedAt === null) {
+    readingRun.manualSeeked = true;
+    updateReadingTimingDisplay();
+  }
+}
+function isReadingTimingActive() {
+  return isPlaying && config.targetSpeed !== 0 && !isScrubbingTimeline && !isDraggingPreviewStage;
+}
+function syncReadingTiming(now = performance.now()) {
+  if (!Number.isFinite(now)) return;
+  const active = isReadingTimingActive();
+  // 처음부터 정방향으로 출발한 회차만 측정. 중간 위치에서 시작한 재생은 제외.
+  if (readingRun.startedAt === null && active && config.targetSpeed > 0) {
+    const { startY, endY } = getScrollBounds();
+    if (endY > startY + 5 && currentScrollY <= startY + 2) readingRun.startedAt = now;
+  }
+  if (readingRun.startedAt === null || readingRun.finishedAt !== null) return;
+  if (active && readingRun.activeFrom === null) readingRun.activeFrom = now;
+  else if (!active && readingRun.activeFrom !== null) {
+    readingRun.activeMs += Math.max(0, now - readingRun.activeFrom);
+    readingRun.activeFrom = null;
+  }
+}
+function getReadingTimingSnapshot(now = performance.now()) {
+  const started = readingRun.startedAt !== null;
+  const lastTime = readingRun.finishedAt ?? now;
+  const activeMs = readingRun.activeMs + (readingRun.activeFrom === null ? 0 : Math.max(0, lastTime - readingRun.activeFrom));
+  const elapsedMs = started ? Math.max(0, lastTime - readingRun.startedAt) : 0;
+  return { started, finished: readingRun.finishedAt !== null,
+    activeMs, elapsedMs, manualSeeked: readingRun.manualSeeked };
+}
+function finishReadingTiming(now = performance.now()) {
+  if (readingRun.startedAt === null || readingRun.finishedAt !== null) return;
+  syncReadingTiming(now);
+  readingRun.finishedAt = now;
+  const result = getReadingTimingSnapshot(now);
+  // 재생 종료 시 수치가 변하지 않도록 진행 중이던 구간을 확정합니다.
+  readingRun.activeMs = result.activeMs;
+  readingRun.activeFrom = null;
+  updateReadingTimingDisplay(now);
+  const note = result.manualSeeked ? ' (수동 위치 이동 포함)' : '';
+  showToast(`끝까지 도달 · 실제 읽기 ${formatSecondsToMMSS(result.activeMs / 1000)} · 전체 경과 ${formatSecondsToMMSS(result.elapsedMs / 1000)}${note}`, 'success');
+}
+function updateReadingTimingDisplay(now = performance.now()) {
+  const panel = document.getElementById('readingTimePanel');
+  if (!panel) return;
+  const result = getReadingTimingSnapshot(now);
+  const actualEl = document.getElementById('lblActualReadTime');
+  const elapsedEl = document.getElementById('lblElapsedReadTime');
+  const statusEl = document.getElementById('lblReadTimeStatus');
+  const actualText = formatSecondsToMMSS(result.activeMs / 1000);
+  const elapsedText = formatSecondsToMMSS(result.elapsedMs / 1000);
+  const status = result.finished ? (result.manualSeeked ? '끝 도달 (수동 이동 포함)' : '✓ 전체 읽기 완료')
+    : !result.started ? '처음부터 재생하면 측정 시작'
+    : isReadingTimingActive() ? '● 측정 중'
+    : 'Ⅱ 정지/대기 · 이어서 재생 가능';
+  if (actualEl.textContent !== actualText) actualEl.textContent = actualText;
+  if (elapsedEl.textContent !== elapsedText) elapsedEl.textContent = elapsedText;
+  if (statusEl.textContent !== status) statusEl.textContent = status;
+  panel.classList.toggle('is-finished', result.finished);
+  panel.classList.toggle('is-seeked', result.manualSeeked);
+}
+
 function formatSecondsToMMSS(sec) {
   if (!isFinite(sec) || sec < 0) return '00분 00초';
   const totalSec = Math.round(sec);
@@ -2863,6 +2963,7 @@ function initYoutubeTimelineBar() {
     const rect = bar.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const { startY, endY } = getScrollBounds();
+    markReadingTimingManualSeek();
     currentScrollY = startY + (endY - startY) * ratio;
     currentVelocity = 0;
     applyScrollTransform();
@@ -2871,19 +2972,24 @@ function initYoutubeTimelineBar() {
     e.preventDefault();
     activateControlZone();
     isScrubbingTimeline = true;
+    syncReadingTiming(performance.now());
     bar.classList.add('dragging');
     seekFromEvent(e);
   });
   window.addEventListener('mousemove', (e) => { if (isScrubbingTimeline) seekFromEvent(e); });
   window.addEventListener('mouseup', () => {
     if (isScrubbingTimeline) {
+      syncReadingTiming(performance.now());
       isScrubbingTimeline = false;
+      syncReadingTiming(performance.now());
       bar.classList.remove('dragging');
     }
   });
 }
 
 function animationLoop(now) {
+  syncReadingTiming(now);
+  updateReadingTimingDisplay(now);
   const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
@@ -2902,7 +3008,11 @@ function animationLoop(now) {
       }
       if (currentScrollY >= endY) {
         currentScrollY = endY;
-        if (isPlaying && config.targetSpeed > 0) { currentVelocity = 0; togglePlay(false); }
+        if (isPlaying && config.targetSpeed > 0) {
+          currentVelocity = 0;
+          finishReadingTiming(now);
+          togglePlay(false);
+        }
       }
       applyScrollTransform();
       syncEditorScrollDuringPlayback(now);
@@ -2922,34 +3032,50 @@ function applyScrollTransform() {
 }
 
 function togglePlay(forceState) {
-  isPlaying = typeof forceState === 'boolean' ? forceState : !isPlaying;
+  const now = performance.now();
+  // 상태 변경 전까지의 실제 재생 시간을 먼저 누적합니다.
+  syncReadingTiming(now);
+  const nextPlaying = typeof forceState === 'boolean' ? forceState : !isPlaying;
+  if (nextPlaying) {
+    const { startY, endY } = getScrollBounds();
+    if (config.targetSpeed > 0 && currentScrollY >= endY - 2) {
+      currentScrollY = startY;
+      resetReadingTiming(); // 끝에서 다시 재생하면 새로운 읽기 회차
+    }
+  }
+  isPlaying = nextPlaying;
+  syncReadingTiming(now);
   const btn = document.getElementById('btnPlayPause');
   if (isPlaying) {
-    const { startY, endY } = getScrollBounds();
-    if (config.targetSpeed > 0 && currentScrollY >= endY - 2) currentScrollY = startY;
     btn.textContent = '⏸ 일시정지 (Space)';
     btn.className = 'btn-danger';
   } else {
     btn.textContent = '▶ 재생 (Space)';
     btn.className = 'btn-success';
   }
+  updateReadingTimingDisplay(now);
 }
 
 function resetToTop(stopPlay = true) {
   if (stopPlay) togglePlay(false);
   currentVelocity = 0;
   currentScrollY = getInitialScrollY();
+  resetReadingTiming(); // 처음으로 이동하면 실측 기록을 다시 시작합니다.
   applyScrollTransform();
   const editor = document.getElementById('scriptEditor');
   if (editor) editor.scrollTop = 0;
 }
 
 function setTargetSpeed(val) {
+  // 속도 변경 전까지의 시간은 이전 속도/재생 상태대로 보존합니다.
+  syncReadingTiming(performance.now());
   const v = Math.max(-100, Math.min(100, parseInt(val || 0, 10)));
   config.targetSpeed = v;
+  syncReadingTiming(performance.now());
   document.getElementById('speedSlider').value = v;
   updateSpeedInputUI();
   updateTimelineAndTimeDisplay();
+  updateReadingTimingDisplay();
   saveStateToStorage();
 }
 
@@ -2980,6 +3106,7 @@ function applyDirectSpeedInput() {
 function moveByLines(direction) {
   const { startY, endY } = getScrollBounds();
   const deltaPx = (config.fontSize * config.lineHeight) * config.jumpLines * direction;
+  markReadingTimingManualSeek();
   currentScrollY = Math.max(startY, Math.min(endY, currentScrollY + deltaPx));
   applyScrollTransform();
 }
@@ -3041,6 +3168,7 @@ function executePptJump() {
 
   const { startY } = getScrollBounds();
   currentVelocity = 0;
+  markReadingTimingManualSeek();
   currentScrollY = Math.max(startY, targetScrollY);
   applyScrollTransform();
 }
